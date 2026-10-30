@@ -100,6 +100,14 @@ The app JAR is written to `app/build/custom-jars/`; the launcher is written to `
 
 [The release packaging script](scripts/package_release.py) builds Windows and Linux ZIPs from those JARs and extracted platform Java runtimes. Run it with `--help` for the required paths. See [maintenance notes](MAINTENANCE.md) for implementation details and test instructions.
 
+## Support development
+
+If you find ZenDownloader-reMaster useful, you can support its continued development:
+
+**[Buy me a coffee](https://buymeacoffee.com/amaster15)**
+
+Donations are optional. Thank you for supporting the project!
+
 ## Original project credit
 
 ZenDownloader-reMaster is a fork of **[NobilityDeviant/ZenDownloader](https://github.com/NobilityDeviant/ZenDownloader)**. Credit for the original application goes to NobilityDeviant and its contributors. This fork maintains the changes described above independently. Original copyright notices and the [Apache 2.0 license](LICENSE) are retained.
