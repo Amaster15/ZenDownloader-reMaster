@@ -104,7 +104,15 @@ The app JAR is written to `app/build/custom-jars/`; the launcher is written to `
 
 If you find ZenDownloader-reMaster useful, you can support its continued development:
 
-**[Buy me a coffee](https://buymeacoffee.com/amaster15)**
+<a href="https://buymeacoffee.com/amaster15">
+  <img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&amp;emoji=&amp;slug=Amaster15&amp;button_colour=00ff00&amp;font_colour=000000&amp;font_family=Cookie&amp;outline_colour=000000&amp;coffee_colour=FFDD00" alt="Buy me a coffee" height="60">
+</a>
+
+Scan the QR code or click the button to support development:
+
+<a href="https://buymeacoffee.com/amaster15">
+  <img src="images/buy-me-a-coffee-qr.png" alt="Buy Me a Coffee QR code for Amaster15" width="240">
+</a>
 
 Donations are optional. Thank you for supporting the project!
 
