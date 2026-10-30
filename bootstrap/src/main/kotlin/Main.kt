@@ -11,6 +11,10 @@ import java.text.CharacterIterator
 import java.text.StringCharacterIterator
 import javax.net.ssl.HttpsURLConnection
 
+private val installationDir: File by lazy {
+    File(object {}.javaClass.protectionDomain.codeSource.location.toURI()).parentFile
+}
+
 fun main(args: Array<String>) {
 
     val latestJar = findJar()
@@ -81,7 +85,12 @@ private fun launchJar(
     jar: File,
     args: Array<String>
 ): Process {
-    val javaBin = File("runtime/bin/java")
+    val executable = if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+        "java.exe"
+    } else {
+        "java"
+    }
+    val javaBin = File(System.getProperty("java.home"), "bin/$executable")
     val command = mutableListOf(
         javaBin.absolutePath,
         "-Xmx3G",
@@ -90,12 +99,13 @@ private fun launchJar(
     )
     command.addAll(args)
     return ProcessBuilder(command)
+        .directory(installationDir)
         .inheritIO()
         .start()
 }
 
 private fun findJar(): File? {
-    val appDir = File("app")
+    val appDir = File(installationDir, "app")
     return appDir
         .listFiles { f -> f.name.matches(Regex("""ZenDownloader-\d+\.\d+\.\d+\.jar""")) }
         ?.maxWithOrNull(Comparator { f1, f2 ->
@@ -120,8 +130,7 @@ private fun extractVersion(name: String): List<Int> {
 private suspend fun downloadUpdate(
     update: Update
 ): Resource<File> = withContext(Dispatchers.IO) {
-    val downloadFolderPath = ".${File.separator}app${File.separator}"
-    val downloadFolder = File(downloadFolderPath)
+    val downloadFolder = File(installationDir, "app")
     if (!downloadFolder.exists() && !downloadFolder.mkdirs()) {
         return@withContext Resource.Error(
             """
@@ -131,7 +140,7 @@ private suspend fun downloadUpdate(
         )
     }
     val downloadedUpdate = File(
-        downloadFolderPath + update.downloadName
+        downloadFolder, update.downloadName
     )
     var con: HttpsURLConnection? = null
     var bis: BufferedInputStream? = null
