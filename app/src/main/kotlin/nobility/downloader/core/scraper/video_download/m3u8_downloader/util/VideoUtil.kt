@@ -20,14 +20,14 @@ object VideoUtil {
         val database = File(AppInfo.databasePath)
         val children = database.listFiles()
         children?.forEach {
-            if (it.name.contains("ffmpeg", true)) {
+            if (it.name in listOf("ffmpeg", "ffmpeg.exe") && it.isFile && it.canExecute()) {
                 return it.absolutePath
             }
         }
         return ""
     }
 
-    private fun loadFfmpegPath(): String {
+    fun loadFfmpegPath(): String {
         val databaseFfmpeg = findDatabaseFfmpeg()
         if (databaseFfmpeg.isNotEmpty()) {
             return databaseFfmpeg
@@ -233,7 +233,7 @@ object VideoUtil {
         val database = File(AppInfo.databasePath)
         val children = database.listFiles()
         children?.forEach {
-            if (it.name.contains("ffplay", true)) {
+            if (it.name in listOf("ffplay", "ffplay.exe") && it.isFile && it.canExecute()) {
                 return it.absolutePath
             }
         }
