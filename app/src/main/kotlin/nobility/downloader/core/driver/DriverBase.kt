@@ -31,7 +31,8 @@ abstract class DriverBase(
     private val id = UUID.randomUUID().toString()
     private val chromeOptions = ChromeOptions()
     private var nDriver: WebDriver? = null
-    val driver get() = nDriver!!
+    private var setupFailure: Exception? = null
+    val driver get() = nDriver ?: throw IllegalStateException("Chrome setup failed. Check the browser and driver versions.", setupFailure)
     val undriver get() = driver as UndetectedChromeDriver
     private var isSetup = false
     private val headless = headless ?: Defaults.HEADLESS_MODE.boolean()
@@ -51,6 +52,7 @@ abstract class DriverBase(
             return
         }
         try {
+            setupFailure = null
             setupDriver()
             //discovered you can actually read the browsers console logs
             //this will be used to print the video links and errors.
@@ -73,6 +75,8 @@ abstract class DriverBase(
                 }
             }
         } catch (e: Exception) {
+            setupFailure = e
+            builder.close()
             FrogLog.error(
                 "Failed to set up Chrome.",
                 e
@@ -83,6 +87,7 @@ abstract class DriverBase(
     suspend fun waitForSetup() {
         var checks = 0
         while (!isSetup) {
+            setupFailure?.let { throw IllegalStateException("Chrome setup failed.", it) }
             delay(500)
             checks++
             if (checks >= 250) {
