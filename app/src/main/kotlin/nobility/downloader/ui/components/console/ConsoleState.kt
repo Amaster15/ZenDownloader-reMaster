@@ -25,6 +25,7 @@ class ConsoleState(
     private val maxLines = 1000
     private val maxLineChars = 300
 
+    @Synchronized
     fun appendChar(c: Char) {
         if (c == '\r') {
             return
@@ -58,6 +59,18 @@ class ConsoleState(
             return
         }
 
+        // Keep each episode's popup timer in its own row, even when workers interleave.
+        // A later status from that episode ends the timer, so a new attempt gets a new row.
+        val countdown = countdownRegex.matchEntire(rawLine)
+        if (countdown != null && rawLine.length <= maxLineChars) {
+            val episodePrefix = countdown.groupValues[1]
+            val previous = lines.indexOfLast { it.startsWith(episodePrefix) }
+            if (previous >= 0 && countdownRegex.matches(lines[previous])) {
+                lines[previous] = rawLine
+                return
+            }
+        }
+
         val prefix = if (!showTime || errorMode) "" else "[${time()}] "
         rawLine.chunked(maxLineChars).forEachIndexed { index, chunk ->
             val line = if (index == 0) "$prefix$chunk" else "→ $chunk"
@@ -70,6 +83,7 @@ class ConsoleState(
         }
     }
 
+    @Synchronized
     fun clear() {
         lines.clear()
         lineCount = 0
@@ -86,6 +100,7 @@ class ConsoleState(
     }
 
     companion object {
+        private val countdownRegex = Regex("^(.*)Player popup: (?:\\d+ seconds remaining before Close\\.|waiting for Close \\(\\d+ seconds elapsed\\)\\.)$")
         private val filters = listOf<String>(
             "Hint: use closeThreadResources() to avoid finalizing recycled transactions"
         )
