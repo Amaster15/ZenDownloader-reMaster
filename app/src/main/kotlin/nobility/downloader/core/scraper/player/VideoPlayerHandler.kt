@@ -56,6 +56,10 @@ object VideoPlayerHandler {
             val parsedResult = help.parseQualities(slug)
 
             if (parsedResult.isFailed) {
+                if (parsedResult.errorCode == nobility.downloader.core.scraper.video_download.ErrorCode.VIDEO_SERVER_BUSY.code) {
+                    data.error("Video server unavailable.", parsedResult.message)
+                    return ReturnCheck.ERROR
+                }
                 if (!parsedResult.message.isNullOrEmpty()) {
                     data.error(
                         "Failed to parse qualities for video playing. | Retrying...",
