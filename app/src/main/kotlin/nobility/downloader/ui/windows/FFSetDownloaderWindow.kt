@@ -244,13 +244,13 @@ class FFSetDownloaderWindow() {
                     while (input.read(buffer).also { bytesRead = it } != -1) {
                         total += bytesRead
                         output.write(buffer, 0, bytesRead)
-                        downloadProgress = (100.0 * total / bytesRead).toFloat()
+                        downloadProgress = if (expectedSize > 0) (total.toFloat() / expectedSize).coerceIn(0f, 1f) else 0f
                     }
                 }
             }
 
             val actualSize = downloadFile.length()
-            if (actualSize != expectedSize) {
+            if (expectedSize >= 0 && actualSize != expectedSize) {
                 return@withContext Resource.Error(
                     "Download incomplete or corrupted. Expected Length: $expectedSize Downloaded Length: $actualSize"
                 )
@@ -260,6 +260,15 @@ class FFSetDownloaderWindow() {
                 downloadFile,
                 outputDirectoryFile
             )
+            listOf("ffmpeg", "ffplay").forEach { name ->
+                val executable = File(outputDirectoryFile, name)
+                if (executable.isFile) {
+                    check(executable.setExecutable(true) || executable.canExecute()) {
+                        "Cannot make $name executable."
+                    }
+                }
+            }
+            check(Tools.ffSetFound(outputDirectoryFile)) { "FFmpeg or FFplay is missing or not executable after extraction." }
             downloadFile.delete()
             val files = outputDirectoryFile.listFiles()
             files?.forEach {
