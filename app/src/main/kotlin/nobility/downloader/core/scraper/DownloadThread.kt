@@ -27,6 +27,13 @@ class DownloadThread {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var currentJobs = AtomicInteger(0)
     private var stopJob: Job? = null
+    private val hiAnimeQueue = LinkedHashMap<String, DownloadQueue>()
+
+    @Synchronized
+    fun deferHiAnime(queue: DownloadQueue) {
+        if (Core.child.isRunning) hiAnimeQueue[queue.episode.slug] = queue
+        synchronizeDownloadsInQueue()
+    }
 
     @Volatile
     var downloadsInProgress = mutableStateOf(0)
@@ -75,8 +82,10 @@ class DownloadThread {
         }
     }
 
+    @Synchronized
     private fun launchDownloadJob() {
-        val nextDownload = nextDownload
+        var fallback = false
+        val nextDownload = nextDownload ?: takeHiAnimeIfReady()?.also { fallback = true }
         if (nextDownload == null) {
             return
         }
@@ -87,7 +96,7 @@ class DownloadThread {
                 nextDownload.quality
             )
             try {
-                downloader.run()
+                if (fallback) downloader.runHiAnime() else downloader.run()
             } catch (e: Exception) {
                 FrogLog.error(
                     "Failed to finish download.",
@@ -100,6 +109,17 @@ class DownloadThread {
         }
     }
 
+    @Synchronized
+    private fun takeHiAnimeIfReady(): DownloadQueue? {
+        if (downloadQueue.isNotEmpty() || currentJobs.get() != 0 || hiAnimeQueue.isEmpty()) return null
+        val entry = hiAnimeQueue.entries.first()
+        val next = entry.value
+        hiAnimeQueue.remove(entry.key)
+        synchronizeDownloadsInQueue()
+        return next
+    }
+
+    @Synchronized
     private fun hasFinished(): Boolean {
         val noJobs = currentJobs.get() <= 0
         val nothingToDownload = isQueueEmpty
@@ -180,8 +200,10 @@ class DownloadThread {
         }
     }
 
+    @Synchronized
     fun clear() {
         downloadQueue.clear()
+        hiAnimeQueue.clear()
         synchronizeDownloadsInQueue()
     }
 
@@ -189,8 +211,9 @@ class DownloadThread {
         scope.cancel()
     }
 
+    @Synchronized
     fun synchronizeDownloadsInQueue() {
-        downloadsInQueue.value = downloadQueue.size
+        downloadsInQueue.value = downloadQueue.size + hiAnimeQueue.size
     }
 
     @Synchronized
@@ -210,6 +233,6 @@ class DownloadThread {
         }
     }
 
-    val isQueueEmpty get() = downloadQueue.isEmpty()
+    val isQueueEmpty @Synchronized get() = downloadQueue.isEmpty() && hiAnimeQueue.isEmpty()
 
 }
