@@ -345,6 +345,20 @@ enum class Defaults(
             Default: 15
         """.trimIndent()
     ),
+    HIANIME_FALLBACK(
+        "hianime_fallback", true,
+        "After all WCO downloads finish, retry failed episodes with HiAnime's Ayame player for an exact show, episode and language match. " +
+            "Ambiguous or unavailable matches are skipped. Default: On"
+    ),
+    PAGE_LINK_RETRIES(
+        "page_link_retries", 30,
+        "Reload the episode page when no video link is found, including a busy server. " +
+            "Also limits fresh-link retries after video connection failures. Retries after the initial attempt. Minimum: 1 | Maximum: 100 | Default: 30"
+    ),
+    PAGE_LINK_RETRY_DELAY_SECONDS(
+        "page_link_retry_delay_seconds", 30,
+        "Seconds to wait before each page-link or video connection retry. Minimum: 1 | Maximum: 100 | Default: 30"
+    ),
     FILE_SIZE_RETRIES(
         "file_size_retries",
         3,
@@ -522,6 +536,8 @@ enum class Defaults(
             WCO_PREMIUM_PASSWORD,
             SHOW_WCO_PREMIUM_PASSWORD,
             VIDEO_RETRIES,
+            PAGE_LINK_RETRIES,
+            PAGE_LINK_RETRY_DELAY_SECONDS,
             FILE_SIZE_RETRIES,
             QUALITY_RETRIES,
             SIMPLE_RETRIES,
@@ -532,6 +548,7 @@ enum class Defaults(
             VLC_PATH,
             VIDEO_PLAYER,
             MPV_PATH,
+            HIANIME_FALLBACK,
             CHOOSE_M3U8_STREAM,
             AUTOMATIC_USER_AGENT_DOWNLOAD
         )
@@ -543,6 +560,8 @@ enum class Defaults(
             DOWNLOAD_THREADS,
             TIMEOUT,
             VIDEO_RETRIES,
+            PAGE_LINK_RETRIES,
+            PAGE_LINK_RETRY_DELAY_SECONDS,
             FILE_SIZE_RETRIES,
             QUALITY_RETRIES,
             SIMPLE_RETRIES,
@@ -564,6 +583,7 @@ enum class Defaults(
             SHOW_DEBUG_MESSAGES,
             ENABLE_RANDOM_SERIES,
             AUTO_SCROLL_RANDOM_SERIES,
+            HIANIME_FALLBACK,
             CHOOSE_M3U8_STREAM,
             AUTOMATIC_USER_AGENT_DOWNLOAD
         )
