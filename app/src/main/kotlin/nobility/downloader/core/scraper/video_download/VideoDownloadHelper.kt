@@ -27,12 +27,8 @@ import nobility.downloader.ui.windows.m3u8.SubtitleOption
 import nobility.downloader.utils.*
 import nobility.downloader.utils.user_agents.UserAgents
 import org.jsoup.Jsoup
-import org.openqa.selenium.By
 import org.openqa.selenium.JavascriptExecutor
-import org.openqa.selenium.support.ui.ExpectedConditions
-import org.openqa.selenium.support.ui.WebDriverWait
 import java.io.File
-import java.time.Duration
 
 /**
  * Just used to make the video handler smaller and easier to manage.
@@ -65,6 +61,10 @@ class VideoDownloadHelper(
                     if (result.errorCode != -1) {
                         val errorCode = ErrorCode.errorCodeForCode(result.errorCode)
                         when (errorCode) {
+                            ErrorCode.VIDEO_SERVER_BUSY -> {
+                                return Resource.ErrorCode(result.message, errorCode.code)
+                            }
+
                             ErrorCode.NO_FRAME -> {
                                 videoDownloadData.resRetries++
                                 return Resource.Error(
@@ -136,10 +136,7 @@ class VideoDownloadHelper(
 
                             ErrorCode.FFMPEG_NOT_INSTALLED -> {
                                 //no retry needed, we finish the episode
-                                return Resource.Error(
-                                    "Critical error | Skipping episode",
-                                    result.message
-                                )
+                                return Resource.ErrorCode(result.message, errorCode.code)
                             }
 
                             else -> {
@@ -197,6 +194,17 @@ class VideoDownloadHelper(
             return Resource.Error()
         }
         return Resource.Success(preferredDownload)
+    }
+
+    private fun readPlayerFrame(episodeUrl: String, frameUrl: String): Resource<StringBuilder> {
+        return try {
+            Resource.Success(StringBuilder(PlayerFrameReader.read(
+                videoDownloadData.driver, episodeUrl, frameUrl, Defaults.TIMEOUT.int().toLong(),
+                status = { videoDownloadData.message(it) }
+            )))
+        } catch (e: Exception) {
+            Resource.Error("Failed to load the embedded player through its normal controls.", e)
+        }
     }
 
     private suspend fun detectAvailableQualities(
@@ -289,50 +297,17 @@ class VideoDownloadHelper(
             var sbFrame = StringBuilder()
             var sbFrameMessage: String? = ""
 
-            @Suppress("UNUSED")
+            videoDownloadData.message("Checking primary player for video links.")
             for (i in 1..5) {
-                val frameSource = readUrlLines(
-                    frameLink,
-                    videoDownloadData,
-                    skipSimpleMode = true
-                ) { base ->
-                    try {
-                        val wait = WebDriverWait(
-                            base.driver,
-                            Duration.ofSeconds(10)
-                        )
-                        wait.pollingEvery(Duration.ofSeconds(1))
-                            .until(
-                                ExpectedConditions.presenceOfElementLocated(
-                                    By.id("announcement")
-                                )
-                            )
-                        try {
-                            wait.pollingEvery(Duration.ofSeconds(1))
-                                .withTimeout(Duration.ofSeconds(5))
-                                .until(
-                                    ExpectedConditions.presenceOfElementLocated(
-                                        By.id("close-btn")
-                                    )
-                                )
-                            val closeButton = base.driver.findElement(
-                                By.id("close-btn")
-                            )
-                            try {
-                                withTimeout(12_000) {
-                                    while (!closeButton.isEnabled) {
-                                        delay(100)
-                                    }
-                                }
-                            } catch (_: TimeoutCancellationException) {
-                            }
-                        } catch (_: Exception) {
-                            delay(12_000)
-                        }
-                        base.executeJs(JavascriptHelper.HIDE_AD)
-                    } catch (e: Exception) {}
-                }
+                if (i > 1) videoDownloadData.message("Primary player did not load: ${sbFrameMessage.orEmpty()}. Reloading player ($i of 5).")
+                val frameSource = readPlayerFrame(fullLink, frameLink)
                 val frameSourceData = frameSource.data
+                if (frameSourceData != null && PlayerPageStatus.isServerBusy(frameSourceData.toString())) {
+                    return@withContext Resource.ErrorCode(
+                        PlayerPageStatus.SERVER_BUSY_MESSAGE,
+                        ErrorCode.VIDEO_SERVER_BUSY.code
+                    )
+                }
                 if (frameSourceData != null) {
                     sbFrame = frameSourceData
                     if (m3u8Check) {
@@ -349,49 +324,18 @@ class VideoDownloadHelper(
             var sbFrame2 = StringBuilder()
 
             if (secondFrameLink.isNotEmpty()) {
+                videoDownloadData.message("Primary player page read. Checking the separate second video player.")
                 @Suppress("UNUSED")
                 for (i in 1..5) {
-                    val frameSource = readUrlLines(
-                        secondFrameLink,
-                        videoDownloadData,
-                        skipSimpleMode = true
-                    ) { base ->
-                        try {
-                            val wait = WebDriverWait(
-                                base.driver,
-                                Duration.ofSeconds(5)
-                            )
-                            wait.pollingEvery(Duration.ofSeconds(1))
-                                .until(
-                                    ExpectedConditions.presenceOfElementLocated(
-                                        By.id("announcement")
-                                    )
-                                )
-                            try {
-                                wait.pollingEvery(Duration.ofSeconds(1))
-                                    .until(
-                                        ExpectedConditions.presenceOfElementLocated(
-                                            By.id("close-btn")
-                                        )
-                                    )
-                                val closeButton = base.driver.findElement(
-                                    By.id("close-btn")
-                                )
-                                try {
-                                    withTimeout(12_000) {
-                                        while (!closeButton.isEnabled) {
-                                            delay(100)
-                                        }
-                                    }
-                                } catch (_: TimeoutCancellationException) {
-                                }
-                            } catch (_: Exception) {
-                                delay(12_000)
-                            }
-                            base.executeJs(JavascriptHelper.HIDE_AD)
-                        } catch (e: Exception) {}
-                    }
+                    if (i > 1) videoDownloadData.message("Second player did not load. Reloading player ($i of 5).")
+                    val frameSource = readPlayerFrame(fullLink, secondFrameLink)
                     val frameSourceData = frameSource.data
+                    if (frameSourceData != null && PlayerPageStatus.isServerBusy(frameSourceData.toString())) {
+                        return@withContext Resource.ErrorCode(
+                            PlayerPageStatus.SERVER_BUSY_MESSAGE,
+                            ErrorCode.VIDEO_SERVER_BUSY.code
+                        )
+                    }
                     if (frameSourceData != null) {
                         sbFrame2 = frameSourceData
                     }
@@ -604,6 +548,7 @@ class VideoDownloadHelper(
             videoDownloadData.debug(
                 "Checking qualities with a timeout of ${Defaults.TIMEOUT.int()} seconds"
             )
+            videoDownloadData.message("Requesting primary player video links. The Play button alone does not confirm a download link.")
             var qualityRetry = 0
             while (qualityRetry <= Defaults.QUALITY_RETRIES.int()) {
                 try {
@@ -646,6 +591,8 @@ class VideoDownloadHelper(
                         }
                         break
                     }
+                    qualityRetry++
+                    videoDownloadData.message("Primary player returned no video links ($qualityRetry of ${Defaults.QUALITY_RETRIES.int() + 1} attempts). Retrying the link request.")
                     delay(2000)
                 } catch (e: Exception) {
                     qualityRetry++
@@ -713,6 +660,8 @@ class VideoDownloadHelper(
                             }
                             break
                         }
+                        qualityRetry++
+                        videoDownloadData.message("Second player returned no video links ($qualityRetry of ${Defaults.QUALITY_RETRIES.int() + 1} attempts). Retrying the link request.")
                         delay(2000)
                     } catch (e: Exception) {
                         qualityRetry++
@@ -731,7 +680,7 @@ class VideoDownloadHelper(
                     "Failed to find quality links after ${Defaults.QUALITY_RETRIES.int()} retries.",
                 )
             } else {
-                videoDownloadData.info("Successfully found qualities. Size: ${downloadDatas.size}")
+                videoDownloadData.message("Resolved ${downloadDatas.count { !it.secondFrame }} primary video link(s) and ${downloadDatas.count { it.secondFrame }} second-video link(s). Checking the selected download.")
                 return@withContext Resource.Success(downloadDatas)
             }
         } catch (e: Exception) {

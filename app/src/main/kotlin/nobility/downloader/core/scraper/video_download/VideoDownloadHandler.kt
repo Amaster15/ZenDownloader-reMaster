@@ -1,10 +1,14 @@
 package nobility.downloader.core.scraper.video_download
 
 import Resource
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import nobility.downloader.core.BoxHelper.Companion.boolean
 import nobility.downloader.core.BoxHelper.Companion.int
+import nobility.downloader.core.BoxHelper.Companion.string
+import nobility.downloader.core.BoxHelper.Companion.seriesForSlug
+import nobility.downloader.core.scraper.video_download.m3u8_downloader.util.VideoUtil
 import nobility.downloader.core.BoxMaker
 import nobility.downloader.core.Core
 import nobility.downloader.core.scraper.data.DownloadData
@@ -35,9 +39,98 @@ class VideoDownloadHandler(
 
     private val data get() = help.videoDownloadData
 
+    private var connectionRetries = 0
+    private suspend fun finishFailed(reason: String, allowFallback: Boolean = true) {
+        data.error(reason)
+        if (allowFallback && Defaults.HIANIME_FALLBACK.boolean() && Core.child.isRunning &&
+            queue.m3U8Data == null && !queue.episode.isMovie) {
+            Core.child.downloadThread.deferHiAnime(queue)
+            data.message("Queued for HiAnime after all WCO downloads finish.")
+        }
+        if (!data.finished) data.finishEpisode()
+    }
+
+    suspend fun runHiAnime() {
+        Core.child.downloadThread.incrementDownloadsInProgress()
+        try {
+            if (Defaults.HIANIME_FALLBACK.boolean() && Core.child.isRunning) {
+                if (data.quickCheckVideoExists(queue.episode.slug)) return
+                data.resetDownload()
+                data.message("WCO pass finished. Searching HiAnime for the same episode and language.")
+                val provider = HiAnimeFallback()
+                val series = seriesForSlug(queue.episode.seriesSlug)?.name ?: queue.episode.seriesName
+                val match = provider.find(series, queue.episode.name)
+                if (!Core.child.isRunning) return
+                data.message("HiAnime matched $series, episode ${match.episode}, ${match.language}. Resolving Ayame.")
+                val wanted = data.temporaryQuality ?: Quality.qualityForTag(Defaults.QUALITY.string())
+                val stream = provider.resolve(match, wanted)
+                val ffmpeg = VideoUtil.loadFfmpegPath()
+                require(ffmpeg.isNotBlank()) { "FFmpeg is required for HiAnime downloads" }
+                val output = data.generateEpisodeSaveFile(stream.quality, " [HiAnime]")
+                // A fallback must never append to a partial WCO file or replace an existing video.
+                require(!output.exists()) { "HiAnime output already exists: ${output.name}" }
+                if (!data.createDownload(queue.episode.slug, stream.quality, output)) return
+                val record = data.currentDownload
+                record.fileSize = 0
+                record.manualProgress = true
+                record.queued = false
+                record.downloading = true
+                record.update()
+                var lastReported = -1
+                provider.download(stream, output, ffmpeg, { Core.child.isRunning }) { percent ->
+                    record.setProgress("HiAnime $percent%")
+                    if (percent / 10 != lastReported) {
+                        lastReported = percent / 10
+                        data.message("HiAnime Ayame: $percent% (${stream.quality.tag})")
+                    }
+                }
+                record.fileSize = output.length()
+                record.downloading = false
+                record.manualProgress = false
+                record.update()
+                BoxMaker.makeDownloadedEpisode(queue.episode.slug)
+                Core.child.downloadThread.incrementDownloadsFinished()
+                data.message("Successfully downloaded from HiAnime Ayame with ${stream.quality.tag} quality.")
+            }
+        } catch (e: CancellationException) {
+            data.message("HiAnime fallback stopped.")
+            throw e
+        } catch (e: Exception) {
+            data.error("HiAnime fallback could not complete. | Skipping episode", e.message)
+        } finally {
+            data.mCurrentDownload?.let { it.manualProgress = false }
+            if (!data.finished) data.finishEpisode()
+        }
+    }
+
+    private suspend fun retryConnection(failure: Exception): Boolean {
+        val limit = Defaults.PAGE_LINK_RETRIES.int().coerceIn(1, 100)
+        val seconds = Defaults.PAGE_LINK_RETRY_DELAY_SECONDS.int().coerceIn(1, 100)
+        val reason = generateSequence<Throwable>(failure) { it.cause }.last().let {
+            "${it.javaClass.simpleName}: ${it.message.orEmpty()}"
+        }
+        data.resetDownload()
+        if (connectionRetries >= limit) {
+            finishFailed("Video connection failed after $limit retries. $reason")
+            return false
+        }
+        connectionRetries++
+        data.message("A video link was found, but the video server connection failed: ${failure.message ?: reason} " +
+            "Refreshing the page for another link in $seconds seconds (retry $connectionRetries of $limit). The popup may appear again.")
+        data.error("Video connection failed. Refreshing the page for a new link in $seconds seconds " +
+            "(connection retry $connectionRetries of $limit).", reason)
+        data.downloadDatas.clear()
+        data.resRetries = 0
+        return PageLinkRetry.waitBeforeRetry(seconds) { Core.child.isRunning }
+    }
+
     suspend fun run() = withContext(Dispatchers.IO) {
         Core.child.downloadThread.incrementDownloadsInProgress()
         while (Core.child.isRunning) {
+            if (data.retries >= Defaults.VIDEO_RETRIES.int()) {
+                finishFailed("WCO reached its maximum download retry count.")
+                break
+            }
             if (data.reachedMax()) {
                 break
             }
@@ -61,18 +154,30 @@ class VideoDownloadHandler(
             val m3U8Data = queue.m3U8Data
             var parsedResult: Resource<DownloadData>? = null
             if (m3U8Data == null) {
-                parsedResult = help.parseQualities(slug)
+                val retriesBeforePage = data.retries
+                parsedResult = PageLinkRetry.run(
+                    retries = Defaults.PAGE_LINK_RETRIES.int().coerceIn(1, 100),
+                    delaySeconds = Defaults.PAGE_LINK_RETRY_DELAY_SECONDS.int().coerceIn(1, 100),
+                    running = { Core.child.isRunning },
+                    attempt = {
+                        // Page attempts have their own budget; old quality counters must not
+                        // prevent a fresh page read or consume the download retry budget.
+                        data.resRetries = 0
+                        data.retries = retriesBeforePage
+                        help.parseQualities(slug)
+                    },
+                    shouldRetry = { it.isFailed && it.errorCode != ErrorCode.FFMPEG_NOT_INSTALLED.code },
+                    onRetry = { retry, total, seconds ->
+                        data.downloadDatas.clear()
+                        data.message("No video link found. Page retry $retry of $total in $seconds seconds.")
+                    }
+                )
+                data.retries = retriesBeforePage
+                if (parsedResult == null || !Core.child.isRunning) break
                 if (parsedResult.isFailed) {
-                    if (parsedResult.errorCode == ErrorCode.FFMPEG_NOT_INSTALLED.code) {
-                        data.finishEpisode()
-                    }
-                    if (!parsedResult.message.isNullOrEmpty()) {
-                        data.error(
-                            "Failed to parse qualities.",
-                            parsedResult.message
-                        )
-                    }
-                    continue
+                    finishFailed("Unable to get a WCO video link after the page attempts. ${parsedResult.message.orEmpty()}",
+                        parsedResult.errorCode != ErrorCode.FFMPEG_NOT_INSTALLED.code)
+                    break
                 }
             }
             val preferredDownload = if (m3U8Data != null) {
@@ -126,14 +231,19 @@ class VideoDownloadHandler(
                     val fileSizeRetries = Defaults.FILE_SIZE_RETRIES.int()
                     var originalFileSize = 0L
                     var headMode = true
+                    var sizeFailure: Exception? = null
                     data.debug("Checking video file size with $fileSizeRetries max retries.")
                     var fileSizeErrorLogged = false
                     for (i in 0..fileSizeRetries) {
-                        originalFileSize = fileSize(
-                            downloadLink,
-                            data.userAgent,
-                            headMode
-                        )
+                        try {
+                            originalFileSize = fileSize(downloadLink, data.userAgent, headMode)
+                        } catch (e: MediaTlsException) {
+                            sizeFailure = e
+                            break
+                        } catch (e: java.io.IOException) {
+                            sizeFailure = e
+                            originalFileSize = 0L
+                        }
                         if (originalFileSize <= Constants.minFileSize) {
                             headMode = headMode.not()
                             if (i == fileSizeRetries / 2 && !fileSizeErrorLogged) {
@@ -148,10 +258,19 @@ class VideoDownloadHandler(
                             break
                         }
                     }
+                    if (sizeFailure is MediaTlsException) {
+                        if (retryConnection(sizeFailure)) continue
+                        break
+                    }
                     if (originalFileSize <= Constants.minFileSize) {
+                        if (sizeFailure != null) {
+                            if (retryConnection(sizeFailure)) continue
+                            break
+                        }
                         if (data.downloadDatas.isNotEmpty()) {
                             data.error(
-                                "Failed to find video file size after $fileSizeRetries retries. | Using another quality."
+                                "Failed to find video file size after $fileSizeRetries retries. | Using another quality.",
+                                sizeFailure?.message
                             )
                             data.resetDownload()
                             data.downloadDatas.remove(preferredDownload)
@@ -161,17 +280,11 @@ class VideoDownloadHandler(
                             }
                             data.retries++
                             if (data.downloadDatas.isEmpty()) {
-                                data.error(
-                                    "There are no more qualities to check. | Skipping episode"
-                                )
-                                data.finishEpisode()
+                                finishFailed("There are no more WCO qualities to check.")
                             }
                             continue
                         } else {
-                            data.error(
-                                "Failed to find video file size. There are no more qualities to check. | Skipping episode"
-                            )
-                            data.finishEpisode()
+                            finishFailed("WCO could not find a video file size and has no more qualities to check.")
                             continue
                         }
                     }
@@ -239,7 +352,13 @@ class VideoDownloadHandler(
                         data.finishEpisode()
                     }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
+                if (e is java.io.IOException) {
+                    if (retryConnection(e)) continue
+                    break
+                }
                 data.currentDownload.queued = true
                 data.currentDownload.downloading = false
                 data.currentDownload.update()

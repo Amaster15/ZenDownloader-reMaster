@@ -255,6 +255,7 @@ object Functions {
         addReferer: Boolean = false
     ): HttpsURLConnection = withContext(Dispatchers.IO) {
         val con = URI(url).toURL().openConnection() as HttpsURLConnection
+        VideoCertificateException.configure(con)
         con.addRequestProperty(
             "Accept",
             "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9"
@@ -284,12 +285,21 @@ object Functions {
         userAgent: String,
         headMode: Boolean
     ): Long = withContext(Dispatchers.IO) {
-        val con = wcoConnection(link, userAgent)
-        if (!headMode) {
-            con.requestMethod = "HEAD"
-            con.useCaches = false
+        // WCO's getvid gateway routes HEAD differently from the actual media GET.
+        val probeWithHead = headMode && URI(link).path != "/getvid"
+        try {
+            return@withContext MediaSizeProbe.read(
+                wcoConnection(link, userAgent, supportEncoding = false), probeWithHead
+            )
+        } catch (e: MediaTlsException) {
+            throw e
+        } catch (e: IOException) {
+            if (!probeWithHead) throw e
+            // Some media servers do not support HEAD or omit its size headers.
+            return@withContext MediaSizeProbe.read(
+                wcoConnection(link, userAgent, supportEncoding = false), false
+            )
         }
-        return@withContext con.contentLengthLong
     }
 
     suspend fun downloadVideo(

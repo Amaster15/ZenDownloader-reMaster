@@ -12,7 +12,8 @@ enum class ErrorCode(val code: Int) {
     EMPTY_FRAME(7),
     FAILED_PAGE_READ(8),
     FFMPEG_NOT_INSTALLED(9),
-    M3U8_SECOND_EMPTY_FRAME(10)
+    M3U8_SECOND_EMPTY_FRAME(10),
+    VIDEO_SERVER_BUSY(11)
 
     ;
 
