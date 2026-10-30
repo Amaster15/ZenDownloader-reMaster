@@ -6,11 +6,11 @@ object AppInfo {
     const val USE_CUSTOM_ERROR_PS = true
     const val UPDATE_ASSETS_ON_LAUNCH = true
     private const val NAME = "ZenDownloader"
-    const val VERSION = "1.3.1" //version can only have 3 numbers split by decimals
+    const val VERSION = "1.3.2" //version can only have 3 numbers split by decimals
     const val TITLE = "$NAME v$VERSION"
-    const val RELEASES_LINK = "https://github.com/NobilityDeviant/ZenDownloader/releases"
-    const val GITHUB_LATEST = "https://api.github.com/repos/NobilityDeviant/ZenDownloader/releases/latest"
-    const val GITHUB_URL = "https://github.com/NobilityDeviant/ZenDownloader"
+    const val RELEASES_LINK = "https://github.com/Amaster15/ZenDownloader-reMaster/releases"
+    const val GITHUB_LATEST = "https://api.github.com/repos/Amaster15/ZenDownloader-reMaster/releases/latest"
+    const val GITHUB_URL = "https://github.com/Amaster15/ZenDownloader-reMaster"
     const val FFMPEG_GUIDE_URL = "https://github.com/NobilityDeviant/ZenDownloader/blob/master/README.md#ffmpeg"
     const val MPV_GUIDE_URL = "https://github.com/NobilityDeviant/ZenDownloader/blob/master/README.md#mpv"
     const val EXAMPLE_SERIES = "anime/negima"
