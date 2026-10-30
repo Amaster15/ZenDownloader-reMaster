@@ -1,454 +1,105 @@
 # ZenDownloader-reMaster
 
-Based on [NobilityDeviant/ZenDownloader](https://github.com/NobilityDeviant/ZenDownloader).
-This fork adds configurable WCO retries, popup handling with a single-line countdown,
-clearer connection diagnostics, and optional HiAnime recovery after the WCO queue finishes.
+A desktop downloader built with Kotlin and Jetpack Compose, with updated WCO player handling, configurable retries, and optional HiAnime recovery.
 
-The original project notice and documentation are retained below. See
-[maintenance notes](MAINTENANCE.md) for the changes in this copy and build instructions.
+**[Download the latest release](https://github.com/Amaster15/ZenDownloader-reMaster/releases/latest)**
 
----
+## Downloads and requirements
 
-I have decided to discontinue this project. While it was fun and I thank everybody for all their issue reports, I can't keep it up anymore.
-After a year and a half or so, It has not gained as much attention as I would have liked it to and I feel like my time is better spent somewhere else.
-WCO is a dying platform and the community isn't the best. I support piracy, but I don't support the path WCO and it's community are heading.
+Release packages are available for **Windows x64** and **Linux x64**. Both include Java 21; no separate Java installation is needed when using the ZIP packages.
 
-The git will be archived, though you are allowed to do with this code as you like.
+- Install Chrome or Chromium separately.
+- FFmpeg is required for HLS video processing and HiAnime downloads. The app can download FFmpeg and FFplay when needed.
+- macOS and ARM packages are not currently provided by this fork.
+- Linux startup has been tested. The Windows package is cross-built and checked for required files; Windows GUI testing is still pending.
 
-Thank you all and good luck.
+Download the ZIP for your operating system from this repository's Releases page. The standalone JAR is intended for updates or users who already have Java 21. `SHA256SUMS.txt` contains checksums for the release downloads.
 
-# ZenDownloader
+### Windows
 
-A Kotlin & Jetpack Compose program used to download episodes, series and movies from: https://www.wcoflix.tv/
+1. Extract the **entire** Windows ZIP.
+2. Open the extracted folder and double-click `run.bat`.
+3. Keep `app`, `runtime`, and `launcher.jar` together.
 
-If you check that website out, it's one of the best video sites for free cartoons and anime. It's also the most vulnerable.
+### Linux
 
-Many of the anime websites out there are locked down really hard which makes wco the perfect target.
+Extract the entire Linux ZIP, open a terminal in the extracted folder, and run:
 
-**Now also supports M3U8 Videos & Episodes with 2 videos.**
+```sh
+chmod +x run.sh
+./run.sh
+```
 
-*Free movie downloading has officially been killed*
+Keep `app`, `runtime`, and `launcher.jar` together. Use the launcher scripts so the app can apply updates from this fork.
 
-*You will have to create a wcopremium.tv account and use those credentials in the settings now*
+## Downloading episodes
 
-We're still back for blood. >:(
+1. Open the app and let the initial database assets finish downloading.
+2. Choose your save folder and preferred quality in Settings.
+3. Paste a WCO series or episode URL, then select the episodes to download.
+4. Follow progress in Downloads and the console.
 
-![](https://github.com/NobilityDeviant/ZenDownloader/raw/master/images/illegal_anime_poster.png)
+The downloader waits for the player popup's countdown, allows two extra seconds before closing it, waits for the player to load, and checks for a visible Play button before extracting links. Each episode's countdown updates on one console line.
 
-# Donate
+**“Player popup closed” refers to the timed overlay, not the video player.** A visible Play button does not guarantee that the video server will accept a download.
 
-If you enjoy this project then please consider donating.
+## Retries and HiAnime recovery
 
-I would greatly appreciate it. :)
+The default page-link retry settings are **30 retries after the initial attempt**, with **30 seconds between retries**. These settings can be adjusted in Settings. Failed video connections can also trigger a fresh page request to obtain another link.
 
-[<img src="images/donate_stripe.png?raw=true">](https://donate.stripe.com/6oEeV1aGb9lZgCIfYY)
+The console distinguishes player-loading failures, missing links, and video-server connection errors. A refresh may show the popup again. Servers with expired HTTPS certificates can fail even when the app successfully finds a video link.
 
-# Requirements
+**HiAnime Fallback** is enabled by default and can be turned off in Settings:
 
-**ZenDownloader** should now support Windows, Mac and Linux.
+- WCO completes its queue and configured retries first.
+- Episodes that exhaust the supported WCO retry paths are collected for a separate HiAnime recovery pass.
+- Recovery requires a unique matching show, episode number, and English dub/sub language. Ambiguous or unavailable matches are skipped.
+- The current provider uses HiAnime's Ayame player. Movies and manually selected HLS streams are excluded.
+- Recovered files use a separate `[HiAnime]` filename. Existing files are not overwritten.
+- Stop clears pending recovery work.
 
-*If the new universal JAR doesn't work for you, please report any issue here: [JAR Issue](https://github.com/NobilityDeviant/ZenDownloader/issues/38)*
+Live tests completed all five Overgeared episodes from WCO at 720p and a separate HiAnime episode-2 download at 1080p with audio. Queue recovery tests passed; a complete live WCO-exhaustion-to-HiAnime run has not yet been verified.
 
-It has been tested on Windows 7, Windows 10, Windows 11, Ubuntu 22.04.04, Pop!_OS 22.04 and Fedora 42.
+## FFmpeg and optional players
 
-*These are tests with the old installer. The new JAR hasn't been fully tested yet.*
+If the automatic FFmpeg download fails, place the appropriate executables in your user database folder:
 
-You will also need to install Chrome. This version doesn't support any other browsers.
+- Windows: `%USERPROFILE%\.zen_database\ffmpeg.exe` and `ffplay.exe`
+- Linux: `~/.zen_database/ffmpeg` and `ffplay` (with executable permissions)
 
-*Windows Requires Visual C++:* [Visual C++ Redistributable for Visual Studio 2015](https://www.microsoft.com/en-us/download/details.aspx?id=48145)
+FFmpeg merges video/audio and converts supported streams to MP4. FFplay is used for playback. The optional mpv player can be selected under **Watch Online Video Player**; set its executable path if it is not available on your system PATH.
 
-# Download & Install
+## Browser setup and troubleshooting
 
-You won't need to download the JRE because it comes pre-packaged.
+The app attempts to match ChromeDriver to the installed browser. If browser setup fails, set **Chrome Browser Path** and **Chrome Driver Path** in Settings to compatible browser and driver executables.
 
-The new packages are all labelled for different operating systems.
+- **Player timeout:** check the console for the failed stage and adjust Timeout in Settings if needed.
+- **Server full or link unavailable:** let the configured retries run; availability depends on the source site.
+- **Expired certificate:** the app normally validates HTTPS certificates. A new-link retry may reach a different server. See [maintenance notes](MAINTENANCE.md) for the narrowly scoped, opt-in certificate exception.
+- **First-run assets:** allow the asset download to complete before starting a series. See the [database guide](database/README.md) for the stored asset layout.
 
-They are each structured to be easily launchable with either a `run.bat` or a `run.sh` file.
+Settings, history, and cached data are stored in `.zen_database` under your user profile. Video files are stored in the save folder you choose in Settings.
 
-These scripts will open the `launch.jar` which is used for easy updates.
+For problems with this fork, include your operating system, app version, episode URL, and relevant console/error messages when reporting the issue on [this repository](https://github.com/Amaster15/ZenDownloader-reMaster).
 
-**Note: You can launch the ZenDownloader JAR directly, but updates won't be supported.**
+## Building from source
 
-The JAR will only run on Java 21 or higher.
+Use JDK 21 and the included Gradle wrapper:
 
-# Installing Chrome
+```sh
+# Linux
+bash gradlew :app:packageFatJar :bootstrap:packageBootstrapJar
+```
 
-*If you already have Chrome installed, make sure it's version 108 or higher.*
+```bat
+rem Windows
+gradlew.bat :app:packageFatJar :bootstrap:packageBootstrapJar
+```
 
-**For Windows:**
+The app JAR is written to `app/build/custom-jars/`; the launcher is written to `bootstrap/build/libs/launcher.jar`.
 
-[Download & Install](https://www.google.com/chrome/?platform=windows)
+[The release packaging script](scripts/package_release.py) builds Windows and Linux ZIPs from those JARs and extracted platform Java runtimes. Run it with `--help` for the required paths. See [maintenance notes](MAINTENANCE.md) for implementation details and test instructions.
 
-**For Mac:**
+## Original project credit
 
-[Download & Install](https://www.google.com/chrome/?platform=mac)
-
-**For Linux (Debian):**
-
-Run these commands in the terminal:
-
-`sudo apt update`
-
-`sudo apt install google-chrome-stable`
-
-Input your password and you're done.
-
-**For Linux (Red Hat Enterprise):**
-
-`sudo dnf config-manager setopt google-chrome.enabled=1`
-
-`sudo dnf install -y google-chrome-stable`
-
-Input your password and you're done.
-
-*You're on your own for any other version of Linux for now.*
-
-# Download Release
-
-**Download The Latest Release:** [Releases](https://github.com/NobilityDeviant/ZenDownloader/releases)
-
-Choose the right `.zip` package for your operating system.
-
-I'm not entirely sure how to check your PC hardware, but hopefully you already know.
-
-*Most Windows Are AMD64. Windows ARM64 isn't directly supported*
-
-*Apple Silicon = ARM64*
-
-*Apple Intel = AMD64*
-
-*AARCH64 = ARM64*
-
-# Setup & Use Release
-
-**For Windows:**
-
-Extract the zip *here* and open the `run.bat` file.
-
-**For Mac/Linux:**
-
-Extract the zip *here*, open the extracted folder, and right click inside the folder and open the terminal.
-
-If you can't do that, open the terminal somewhere else and redirect it to the extracted folder root.
-
-Command Example: 
-
-`cd /home/ZenDownloader-linux-amd64/`
-
-If you're on Mac, you might need to bypass the Gatekeeper with the command:
-
-`xattr -d com.apple.quarantine run.sh`
-
-Now use the command:
-
-`./run.sh`
-
-If it fails to run due to permissions, use the command:
-
-`chmod +x run.sh`
-
-Input your password if it asks.
-
-# Ffmpeg
-
-FFmpeg is used to merge m3u8 ts files and to merge video and audio files.
-
-FFplay is used to play videos directly instead of downloading them.
-
-ZenDownloader will now show a window to download FFmpeg and FFplay at launch.
-
-If that fails, or you want to prepare beforehand, you can find all the binaries for every operating system here: 
-
-[https://github.com/Tyrrrz/FFmpegBin/releases/tag/7.1.1](https://github.com/Tyrrrz/FFmpegBin/releases/tag/7.1.1) 
-
-Once downloaded, extract *here* and copy the files`ffmpeg`& `ffplay` into the database folder.
-
-Example of path: `C:\Users\CuratedDev\.zen_database\ffmpeg`
-
-You can find the database folder in this guide: ([https://github.com/NobilityDeviant/ZenDownloader/blob/master/database/README.md#database-folder](https://github.com/NobilityDeviant/ZenDownloader/blob/master/database/README.md#database-folder))
-
-*Windows files will have the `.exe` extension.*
-
-# MPV
-
-Mpv is now an option to use for using the "Watch Online" feature.
-
-It comes with it's own UI unlike ffplay and allows you to choose all the m3u8 options available.
-
-Right-clicking one of the icons on the bottom of the mpv window will show the list of options.
-
-You can find downloads for mpv here: [https://mpv.io/installation/](https://mpv.io/installation/)
-
-Choose whatever download you need for your operating system. You should know your OS at this point.
-
-Once downloaded, you will have to choose mpv in the new `Watch Online Video Player` setting.
-
-When choosing mpv as the option, it will show a new option to choose your own mpv path. 
-
-*This path must point to an mpv executable.*
-
-If mpv is executable in the command prompt or terminal, you should keep the custom path blank.
-
-*The custom mpv path will override the mpv command even if it doesn't exist.*
-
-Test this by opening the command prompt/terminal and executing the command: `mpv`
-
-I will not give much info on installing mpv, but if you have any issues, create a ticket and I will try to help.
-
-# First Run
-
-For your first run, you will be greeted with the **Asset Updater**
-
-This will download all the files (besides images) from the [Database Folder](https://github.com/NobilityDeviant/ZenDownloader/tree/master/database)
-
-If you want a better User Experience with the **Database Window** or if you want to see **Random Series**, you should also download the images.
-
-A guide for that can be found here: [Download Images](https://github.com/NobilityDeviant/ZenDownloader/tree/master/database#series-images)
-
-# Asset Updater Not Working
-
-If the **Asset Updater** isn't working for you, then follow this guide to ensure you get all the updates: 
-
-**Database Guide:** [Guide](https://github.com/NobilityDeviant/ZenDownloader/tree/master/database)
-
-# Custom Chrome Browser & Driver
-
-There's now an option to add your own path to the Chrome Browser and ChromeDriver.
-
-First you're going to want to install Chrome from the offical website.
-You can follow the [Download & Install](https://github.com/NobilityDeviant/ZenDownloader#download--install) for that.
-
-You are going to need to find the version and the installed path of Chrome.
-
-**Common Chrome Install Paths:**
-
-*Windows:*
-
-`C:\Program Files\Google\Chrome\Application\chrome.exe`
-
-`C:\Program Files (x86)\Google\Chrome\Application\chrome.exe`
-
-`%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe`
-
-*Mac:*
-
-`/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`
-
-*Linux:*
-
-`/usr/bin/google-chrome`
-
-`/opt/google/chrome/google-chrome`
-
-`/usr/bin/google-chrome-stable`
-
-`/opt/google/chrome/google-chrome-stable`
-
-**Find Chrome Version:**
-
-*Universal:*
-
-The Chrome version should be displayed inside the Settings of Chrome under *About Chrome*.
-
-*Windows:*
-
-You can navigate to the install folder, find chrome.exe and hover over it.
-The Windows tooltip should show you the version.
-
-*Mac:*
-
-Open the terminal and use the command:
-
-`/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --version`
-
-Use the path to Chrome you found earlier.
-
-Mac commands use `\` if the directory name contains a space. Make sure to include them.
-
-*Linux:*
-
-Open the terminal and use the command:
-
-`google-chrome-stable --version`
-
-or 
-
-`google-chrome --version`
-
-**Download Chrome Driver**
-
-Now visit: [Chrome Driver Releases](https://googlechromelabs.github.io/chrome-for-testing/#stable)
-
-and find the version closest to yours.
-
-If you can't find an exact match, you can use the link it provides for your Operating System and replace the version with your own.
-
-For example: [128.0.6613.85](https://storage.googleapis.com/chrome-for-testing-public/128.0.6613.85/win64/chromedriver-win64.zip)
-
-**Settings**
-
-Now inside **Settings** you will see 2 options:
-
-*Chrome Browser Path*
-
-and 
-
-*Chrome Driver Path*
-
-Click the **Set File** button for each path respectively to choose your files.
-
-The browser path will be the `chrome.exe` you were using earlier to check the version.
-
-The driver path will be the `chromedriver.exe` you just downloaded.
-
-Linux will be a little bit different.
-
-Linux chromedrivers will not have an extension.
-
-The executable for Linux will be different as well. I have no clue where that would be, but I'll update this when I find out.
-
-# MP4 Video Format
-
-All videos get downloaded/converted to MP4 and I don't have intentions to allow different formats atm.
-
-Make sure you have the correct codecs to watch mp4s.
-
-Most operating systems do come with them, but some don't. 
-
-Search Engines are your friends.
-
-# UI
-
-**Home**
-
-![Home](images/home.png?raw=true "Home")
-
-**Downloads**
-
-![Downloads](images/downloads.png?raw=true "Downloads")
-
-**Settings**
-
-![Settings](images/settings.png?raw=true "Settings")
-
-**Download Confirm**
-
-![Download Confirm](images/download_confirm.png?raw=true "Download Confirm")
-
-**Database**
-
-![Database](images/database.png?raw=true "Database")
-
-**Recent**
-
-![Recent](images/recent.png?raw=true "Recent")
-
-**History**
-
-![History](images/history.png?raw=true "History")
-
-# Side Tips
-
-**Episode Multi-Select**
-
-When you're in the **Download Confirm Window** you can multi-select specific episodes if there's a ton of them.
-
-Hold the **Shift Key** to enable `Shift Mode` and click on the episode to highlight it. The first episode will be the starting point.
-
-![ShiftMode1](guide/shift_mode_1.png?raw=true "ShiftMode1")
-
-Now let go of the shift key, scroll down/up to whatever episode you want, hold the shift key again and select an episode.
-This will highlight every episode in between the starting point to the last one.
-
-![ShiftMode2](guide/shift_mode_2.png?raw=true "ShiftMode2")
-
-Now once everything you want to select is highlighted, let go of the shift key and press the `Select % Highlighted Episode(s)` Button.
-This will select everything that's been highlighted. It will lag, but just wait for it to finish.
-
-![ShiftMode3](guide/shift_mode_3.png?raw=true "ShiftMode3")
-
-**Timeout Errors**
-
-If you are experiencing any timeout errors inside the `Error Console`, go to the `Settings Tab` and increase the timeout to something higher.
-The timeout option effects everything related to timeouts and should help if you're having any issues.
-
-![Timeout](guide/timeout.png?raw=true "Timeout")
-
-# Building
-
-You can also use this section if there isn't a distribution for your operating system.
-As long as you can use IntelliJ, you're good to go.
-
-I 100% recommend using IDEA. Don't use Eclipse or Netbeans because they're not fully supported.
-This project is built using JDK 21.
-
-Download IntelliJ: [Download](https://www.jetbrains.com/idea/)
-
-Press the **Download** button, Scroll down and download the **Community Edition**.
-
-For Windows & Mac, it should be as simple as opening the downloaded file.
-
-For Linux, you have to extract the tar ball. 
-
-Either right click it in the file and select **Extract Here** or find the terminal command for extracting tar balls.
-
-Open the extracted folder, go into `bin`, right click an empty spot in the folder, open the Terminal and use the command:
-
-`./idea`
-
-In order to import the project through VCS, `Git` is needed as well.
-*Git is recommended for to easy updating*
-
-Download Git: [Download](https://git-scm.com/downloads)
-
-Once those are installed open **IntelliJ**.
-
-You will be greeted with the project window.
-
-![Project Window](guide/idea_project_window.png?raw=true "Project Window")
-
-Select **Get From VCS**
-
-Scroll up and get the git url:
-
-![Git Url](guide/get_git_link.png?raw=true "Get Git Link")
-
-Paste it in the URL field and press the **Clone** button.
-
-Once imported it will throw an error about the JDK if it's not installed.
-
-Click the error in the console and you'll be greeted with this window:
-
-![Git Url](guide/select_jdk.png?raw=true "Select JDK")
-
-Under **Gradle JVM** select it and select **Download JDK**
-
-For the version you will want to select **21**
-
-Press **Download**, press **Apply** and press **Ok**
-
-Once that's been downloaded, go to File > Close Project
-
-![Close Project](guide/close_project.png?raw=true "Close Project")
-
-and then reopen it and you should be good to go.
-
-If there's a warning on top of IntelliJ to install Java, you have to accept it.
-
-Now once everything is imported and downloaded, open the project tree on the left (Folder Icon) and look for: 
-
-`src > main > kotlin > Main.kt`
-
-Right click **Main.kt** and select `Run MainKt`
-
-Or even better, you can use the `run` task from Gradle under `ZenDownload > Tasks > compose desktop`.
-
-**Creating OS distributables is no longer supported or encouraged**
-
-You can however create the JAR distributables if you want with the Gradle Task under:
-
-`ZenDownloader > Tasks > custom jar > packageJARDistributables`
-
-**Note: This will download all the JDKs for every operating system that will total in about 2GB of data.**
-
-That's it! If you have any issues, please create an issue in Github and i'll get right on it.
+ZenDownloader-reMaster is a fork of **[NobilityDeviant/ZenDownloader](https://github.com/NobilityDeviant/ZenDownloader)**. Credit for the original application goes to NobilityDeviant and its contributors. This fork maintains the changes described above independently. Original copyright notices and the [Apache 2.0 license](LICENSE) are retained.
