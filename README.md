@@ -1,3 +1,14 @@
+# ZenDownloader-reMaster
+
+Based on [NobilityDeviant/ZenDownloader](https://github.com/NobilityDeviant/ZenDownloader).
+This fork adds configurable WCO retries, popup handling with a single-line countdown,
+clearer connection diagnostics, and optional HiAnime recovery after the WCO queue finishes.
+
+The original project notice and documentation are retained below. See
+[maintenance notes](MAINTENANCE.md) for the changes in this copy and build instructions.
+
+---
+
 I have decided to discontinue this project. While it was fun and I thank everybody for all their issue reports, I can't keep it up anymore.
 After a year and a half or so, It has not gained as much attention as I would have liked it to and I feel like my time is better spent somewhere else.
 WCO is a dying platform and the community isn't the best. I support piracy, but I don't support the path WCO and it's community are heading.
