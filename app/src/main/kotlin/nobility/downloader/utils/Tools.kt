@@ -637,22 +637,14 @@ object Tools {
     fun ffSetFound(
         outputDirectoryFile: File = File(AppInfo.databasePath)
     ): Boolean {
-        outputDirectoryFile.mkdirs()
-        val currentFiles = outputDirectoryFile.listFiles()
-        var hasFfmpeg = false
-        var hasffPlay = false
-        currentFiles?.forEach {
-            if (it.name.contains("ffmpeg", true)) {
-                hasFfmpeg = true
-            }
-            if (it.name.contains("ffplay", true)) {
-                hasffPlay = true
-            }
-            if (it.name.contains("ffprobe", true)) {
-                it.delete()
-            }
+        return listOf("ffmpeg", "ffplay").all { name ->
+            val executable = if (System.getProperty("os.name").startsWith("Windows")) "$name.exe" else name
+            val local = File(outputDirectoryFile, executable)
+            (local.isFile && local.canExecute()) || System.getenv("PATH").orEmpty()
+                .split(File.pathSeparator)
+                .filter { it.isNotBlank() }
+                .any { File(it, executable).let { file -> file.isFile && file.canExecute() } }
         }
-        return (hasFfmpeg && hasffPlay)
     }
 
     fun isFolderWritable(

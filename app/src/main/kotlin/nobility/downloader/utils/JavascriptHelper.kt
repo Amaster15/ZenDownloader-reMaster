@@ -65,23 +65,4 @@ object JavascriptHelper {
         return Y.replace(CHANGE_KEY, link)
     }
 
-    //thanks for not doing this in php brother
-    const val HIDE_AD = """
-      const announcement = document.getElementById('announcement');
-      const backdrop = document.getElementById('backdrop');
-      
-	  function doClose() {
-        if (announcement === null) {
-            return;
-        }
-        announcement.style.opacity = '0';
-        backdrop.style.opacity = '0';
-        announcement.style.display = 'none';
-        backdrop.style.display = 'none';
-        var cerceve = "https://embed.wcostream.com/inc/embed/video-js.php" + window.location.search;
-        window.location.replace(cerceve);
-      }
-	  
-        doClose();
-    """
 }
