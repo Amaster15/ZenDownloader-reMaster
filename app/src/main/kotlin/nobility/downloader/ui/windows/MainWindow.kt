@@ -32,6 +32,7 @@ import nobility.downloader.Page.Companion.viewPage
 import nobility.downloader.core.Core
 import nobility.downloader.core.scraper.video_download.Functions
 import nobility.downloader.ui.components.*
+import nobility.downloader.ui.components.dialog.DialogHelper
 import nobility.downloader.ui.theme.CoreTheme
 import nobility.downloader.ui.windows.utils.AppWindowScope
 import nobility.downloader.utils.Constants
@@ -170,6 +171,25 @@ private fun UiWrapper(
                         }
                     },
                     actions = {
+                        Tooltip("Support development on Buy Me a Coffee") {
+                            Button(
+                                onClick = {
+                                    DialogHelper.showLinkPrompt(
+                                        "https://buymeacoffee.com/amaster15",
+                                        prompt = false
+                                    )
+                                },
+                                modifier = Modifier.height(30.dp).padding(end = 6.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF00FF00),
+                                    contentColor = Color.Black
+                                ),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text("Donate", fontSize = 12.sp, maxLines = 1)
+                            }
+                        }
                         OverflowRow(
                             modifier = Modifier.width(175.dp),
                             items = Core.currentPage.viewPage().menuOptions,
