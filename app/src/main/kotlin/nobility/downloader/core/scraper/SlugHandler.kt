@@ -117,9 +117,12 @@ class SlugHandler {
         }
     }
 
+    suspend fun refreshSeries(series: Series) = scrapeSeriesWithSlug(series.slug, series.identity, false)
+
     private suspend fun scrapeSeriesWithSlug(
         seriesSlug: String,
-        identityType: Int = -1
+        identityType: Int = -1,
+        addToHistory: Boolean = true
     ): Resource<Series> = withContext(Dispatchers.IO) {
         val identity = if (identityType == -1)
             findIdentityForSlug(seriesSlug)?.identity
@@ -143,7 +146,7 @@ class SlugHandler {
                     result.message
                 )
             }
-            var doc = Jsoup.parse(result.data.toString())
+            var doc = Jsoup.parse(result.data.toString(), fullLink)
             if (identity == SeriesIdentity.MOVIE) {
                 val category = doc.getElementsByClass("header-tag")
                 val h2 = category[0].select("h2")
@@ -186,7 +189,7 @@ class SlugHandler {
 
                 for (a in episodesList) {
                     val link = a.attr("href")
-                    val title = a.selectFirst("span")?.text() ?: "No Title"
+                    val title = nobility.downloader.utils.EpisodeNaming.sourceTitle(a)
 
                     val episode = Episode(
                         title,
@@ -227,7 +230,7 @@ class SlugHandler {
             val image = doc.getElementsByClass("img5")
             var imageLink = ""
             if (image.isNotEmpty()) {
-                imageLink = "https:${image.attr("src")}"
+                imageLink = image.first()?.absUrl("src").orEmpty()
             }
             var descriptionText = ""
             val description = doc.getElementsByTag("p")
@@ -257,7 +260,8 @@ class SlugHandler {
                 dateAdded = Tools.dateAndTimeFormatted,
                 identity = identity.type,
                 episodes = episodes,
-                genres = genresList
+                genres = genresList,
+                addToHistory = addToHistory
             )
             ImageUtils.downloadSeriesImage(series)
             return@withContext Resource.Success(series)

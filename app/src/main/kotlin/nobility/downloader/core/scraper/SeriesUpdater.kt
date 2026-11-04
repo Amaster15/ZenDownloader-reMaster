@@ -28,6 +28,7 @@ object SeriesUpdater {
         val result = gatherSeriesEpisodes(series, driverBase)
         val data = result.data
         if (data != null) {
+            if (data.size == series.episodesSize) series.updateEpisodes(data)
             if (data.size > series.episodesSize) {
                 return@withContext Resource.Success(
                     NewEpisodes(
@@ -61,6 +62,7 @@ object SeriesUpdater {
         val result = gatherSeriesEpisodes(series, driverBase)
         val data = result.data
         if (data != null) {
+            if (data.size == series.episodesSize) series.updateEpisodes(data)
             if (data.size > series.episodesSize) {
                 return@withContext Resource.Success(
                     NewEpisodes(
@@ -106,7 +108,7 @@ object SeriesUpdater {
                 if (episodesList.isNotEmpty()) {
                     for (a in episodesList) {
                         val link = a.attr("href")
-                        val title = a.selectFirst("span")?.text() ?: "No Title"
+                        val title = nobility.downloader.utils.EpisodeNaming.sourceTitle(a)
 
                         val episode = Episode(
                             title,
@@ -156,7 +158,7 @@ object SeriesUpdater {
     ): List<Episode> {
         val episodes = mutableListOf<Episode>()
         for (e in latestEpisodes) {
-            if (!series.hasEpisode(e)) {
+            if (series.episodes.none { it.slug == e.slug }) {
                 episodes.add(e)
             }
         }

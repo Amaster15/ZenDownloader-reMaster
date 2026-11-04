@@ -12,6 +12,8 @@ object PlayVideoWithFfplay {
         userAgent: String,
         windowTitle: String = url,
         ffplayPath: String = VideoUtil.FfmpegPathHolder.ffplayPath,
+        referer: String = "",
+        onStarted: (Process) -> Unit = {},
     ): Resource<Boolean> {
 
         if (ffplayPath.isEmpty()) {
@@ -22,7 +24,8 @@ object PlayVideoWithFfplay {
             ffplayPath,
             "-volume", "50",
             "-window_title", windowTitle,
-            "-headers", "User-Agent: $userAgent",
+            "-headers", "User-Agent: $userAgent\r\n" +
+                if (referer.isNotEmpty()) "Referer: $referer\r\n" else "",
             //"-autoexit",
             "-x", "800",
             "-y", "600",
@@ -30,17 +33,32 @@ object PlayVideoWithFfplay {
             url
         )
 
+        val log = java.io.File.createTempFile("zen-player-", ".log")
         return try {
 
             val process = ProcessBuilder(command)
-                .inheritIO()
                 .redirectErrorStream(true)
+                .redirectOutput(log)
                 .start()
 
+            if (process.waitFor(750, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                val detail = log.readText().takeLast(2000).trim()
+                log.delete()
+                return Resource.Error("FFplay could not start (exit ${process.exitValue()}).\n$detail")
+            }
+            process.onExit().thenRun {
+                if (process.exitValue() != 0) {
+                    val detail = runCatching { log.readText().takeLast(2000).trim() }.getOrDefault("")
+                    nobility.downloader.utils.FrogLog.error("FFplay stopped (exit ${process.exitValue()}).", detail)
+                }
+                log.delete()
+            }
             Core.child.runningProcesses.add(process)
+            onStarted(process)
 
             Resource.Success(true)
         } catch (e: Exception) {
+            log.delete()
             Resource.Error(e)
         }
     }

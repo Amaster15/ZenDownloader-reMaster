@@ -511,6 +511,11 @@ object Tools {
         val os = System.getProperty("os.name").lowercase(Locale.getDefault())
 
         when {
+            // Use the desktop URL association directly instead of Java's browser integration.
+            "nix" in os || "nux" in os || "aix" in os -> {
+                ProcessBuilder("xdg-open", uri.toASCIIString()).start()
+            }
+
             Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE) -> {
                 Desktop.getDesktop().browse(uri)
             }
@@ -523,9 +528,7 @@ object Tools {
                 Runtime.getRuntime().exec(arrayOf("rundll32", "url.dll,FileProtocolHandler", uri.toString()))
             }
 
-            "nix" in os || "nux" in os || "aix" in os -> {
-                Runtime.getRuntime().exec(arrayOf("xdg-open", uri.toString()))
-            }
+
 
             else -> {
                 throw UnsupportedOperationException("Unsupported OS: $os")

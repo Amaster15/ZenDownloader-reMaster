@@ -3,6 +3,8 @@ package nobility.downloader.ui.windows
 import AppInfo
 import Update
 import Updater
+import ReleaseDownload
+import java.io.File
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -43,6 +45,10 @@ class UpdateWindow(
     private var appWindowScope: AppWindowScope? = null
     private var updateButtonEnabled = mutableStateOf(true)
 
+    private val downloadStatus = mutableStateOf("")
+    private val stagedFile = mutableStateOf<File?>(null)
+    private val downloading = mutableStateOf(false)
+
     init {
         downloadScope.launch {
             checkForUpdates()
@@ -56,6 +62,8 @@ class UpdateWindow(
         ApplicationState.newWindow(
             if (update.isLatest) "Updated" else "Update Available",
             onClose = {
+                if (downloading.value) return@newWindow false
+                stagedFile.value?.delete()
                 if (downloadScope.isActive) {
                     downloadScope.cancel()
                 }
@@ -82,7 +90,7 @@ class UpdateWindow(
                                     "Deny Update",
                                     height = 40.dp,
                                     width = 150.dp,
-                                    enabled = !update.isLatest
+                                    enabled = !update.isLatest && !downloading.value
                                 ) {
                                     Defaults.DENIED_UPDATE.update(true)
                                     FrogLog.message(
@@ -92,12 +100,25 @@ class UpdateWindow(
                                 }
                             }
                             DefaultButton(
-                                "Update",
+                                if (stagedFile.value != null) "Install and restart" else "Download update",
                                 height = 40.dp,
-                                width = 150.dp,
+                                width = 190.dp,
                                 enabled = updateButtonEnabled
                             ) {
-                                Core.child.shutdown(true)
+                                val staged = stagedFile.value
+                                if (staged == null) {
+                                    downloadUpdate()
+                                } else if (Core.child.isRunning) {
+                                    downloadStatus.value = "Stop active downloads before installing the update."
+                                } else {
+                                    try {
+                                        ReleaseDownload.install(staged, update.downloadName)
+                                        stagedFile.value = null
+                                        Core.child.shutdown(true)
+                                    } catch (error: Exception) {
+                                        downloadStatus.value = "Install failed: ${error.message}"
+                                    }
+                                }
                             }
                         }
                     }
@@ -111,6 +132,9 @@ class UpdateWindow(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
+                        if (downloadStatus.value.isNotEmpty()) {
+                            Text(downloadStatus.value, modifier = Modifier.padding(8.dp))
+                        }
                         Text(
                             if (update.isLatest)
                                 "You have the latest update."
@@ -129,9 +153,7 @@ class UpdateWindow(
                                       Current Version: ${AppInfo.VERSION}
                                       Latest Version: ${update.version}
                                       
-                                      Update Download Link:
-                                       
-                                      ${update.downloadLink}
+                                      Updates from Amaster15/ZenDownloader-reMaster on GitHub
                                    """.trimIndent(),
                                 style = MaterialTheme.typography.bodyMedium,
                                 textColor = MaterialTheme.colorScheme.onSurface,
@@ -175,6 +197,35 @@ class UpdateWindow(
         }
     }
 
+    private fun downloadUpdate() {
+        if (System.getProperty("zen.launcher.updates") != "2") {
+            downloadStatus.value = "Restart using the updated run.sh or run.bat launcher to enable in-app installation."
+            return
+        }
+        downloading.value = true
+        updateButtonEnabled.value = false
+        downloadScope.launch {
+            try {
+                val appJar = File(UpdateWindow::class.java.protectionDomain.codeSource.location.toURI())
+                val staged = ReleaseDownload.stage(update, appJar.parentFile) { bytes, total ->
+                    downloadStatus.value = if (total > 0) "Downloading update: ${bytes * 100 / total}%"
+                        else "Downloading update: ${bytes / 1024 / 1024} MB"
+                }
+                withContext(Dispatchers.Main) {
+                    stagedFile.value = staged
+                    downloadStatus.value = "Ready to install ${update.version}. The app will restart; your settings and library are kept."
+                }
+            } catch (error: Exception) {
+                withContext(Dispatchers.Main) { downloadStatus.value = "Download failed: ${error.message}. Try again." }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    downloading.value = false
+                    updateButtonEnabled.value = true
+                }
+            }
+        }
+    }
+
     private fun close() {
         if (downloadScope.isActive) {
             downloadScope.cancel()
@@ -198,6 +249,10 @@ class UpdateWindow(
                     "Failed to check for updates. " +
                             if (!message.isNullOrEmpty()) message else ""
                 )
+                if (!justCheck) withContext(Dispatchers.Main) {
+                    nobility.downloader.ui.components.dialog.DialogHelper.showMessage(
+                        "Update check failed", message ?: "Could not read the GitHub release. Please try again.")
+                }
                 return@withContext
             }
         }

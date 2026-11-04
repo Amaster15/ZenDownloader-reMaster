@@ -241,6 +241,10 @@ object VideoUtil {
     }
 
     private fun loadFfplayPath(): String {
+        // Linux distro builds integrate with the host's PulseAudio/PipeWire/ALSA stack.
+        // The portable download may only provide an unusable OSS (/dev/dsp) backend.
+        if (System.getProperty("os.name").startsWith("Linux", ignoreCase = true) &&
+            execCommand(listOf("ffplay", "-version"))) return "ffplay"
         val databaseFfplay = findDatabaseFfplay()
         if (databaseFfplay.isNotEmpty()) {
             return databaseFfplay

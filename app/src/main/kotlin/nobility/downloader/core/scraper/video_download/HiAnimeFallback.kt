@@ -84,6 +84,27 @@ class HiAnimeFallback {
         return Match(target, id, number, language, player)
     }
 
+    /** Resolve only the explicit episode/language selected in Watch. */
+    suspend fun watchMatch(url: String, language: String): Match {
+        val uri = URI(url)
+        require(uri.scheme == "https" && uri.host == "hianime.ms" && uri.path.startsWith("/watch-"))
+        require(language in listOf("dub", "sub"))
+        val doc = Jsoup.parse(text(url), url)
+        val cfg = JsonParser.parseString(doc.selectFirst("[data-hk-watch]")?.attr("data-hk-watch")
+            ?: error("HiAnime player metadata is missing")).asJsonObject
+        require(!cfg.get("movie").asBoolean) { "Movie playback is not supported yet" }
+        require(doc.select("button[data-server=vidnest-pahe][data-version=$language]").isNotEmpty()) {
+            "Ayame player is unavailable in $language"
+        }
+        val id = cfg.get("al").asLong
+        val ep = cfg.get("ep").asInt
+        require(id > 0 && ep > 0)
+        val player = cfg.getAsJsonObject("mirror").get("vidnest-pahe").asString
+            .replace("{al}", id.toString()).replace("{ep}", ep.toString()).replace("{lang}", language)
+        require(URI(player).scheme == "https" && URI(player).host == "vidnest.fun")
+        return Match(url, id, ep, language, player)
+    }
+
     suspend fun resolve(match: Match, requested: Quality): Stream {
         // Discover the public player response configuration rather than storing a rotating key.
         val page = Jsoup.parse(text(match.player), match.player)
@@ -121,6 +142,14 @@ class HiAnimeFallback {
         require(seconds > 0 && parts.isNotEmpty())
         return Stream(chosen.second, Quality.qualityForResolution(chosen.first), seconds, parts)
     }
+
+    suspend fun playbackPlaylist(stream: Stream): String {
+        val playlist = text(stream.playlist, "https://megaplay.buzz/")
+        require(segments(playlist, stream.playlist) == stream.segments) { "Playlist changed; please press Play again" }
+        return playlist
+    }
+
+    suspend fun playbackSegment(url: String): ByteArray = tsPayload(bytes(url, "https://megaplay.buzz/"))
 
     suspend fun download(stream: Stream, output: File, ffmpeg: String, running: () -> Boolean, progress: (Int) -> Unit) = coroutineScope {
         require(!output.exists()) { "HiAnime output already exists; refusing to overwrite it" }

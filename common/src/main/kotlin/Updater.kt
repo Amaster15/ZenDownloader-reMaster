@@ -33,12 +33,18 @@ object Updater {
         }
     }
 
-    fun parseLatestRelease(): Resource<Update> {
+    fun parseLatestRelease(): Resource<Update> = try {
+        parseRelease()
+    } catch (error: Exception) {
+        Resource.Error("Could not read the GitHub release: ${error.message}")
+    }
+
+    private fun parseRelease(): Resource<Update> {
         val result = fetchLatestRelease()
         if (result.data != null) {
             val json = result.data
             val version = json["tag_name"].asString
-            val body = json["body"].asString
+            val body = json["body"]?.takeUnless { it.isJsonNull }?.asString ?: ""
             val array = json.getAsJsonArray("assets")
             if (array != null) {
                 for (element in array) {
@@ -52,7 +58,7 @@ object Updater {
                             val url = o["browser_download_url"].asString
                             val type = o["content_type"].asString
                             val name = o["name"].asString
-                            if (url.endsWith(".jar")) {
+                            if (name.matches(Regex("ZenDownloader-\\d+\\.\\d+\\.\\d+\\.jar"))) {
                                 return Resource.Success(
                                     Update(
                                         version,
@@ -81,7 +87,7 @@ object Updater {
             return true
         }
         val currentParts = AppInfo.VERSION.split(".").map { it.toIntOrNull() ?: 0 }
-        val latestParts = latest.split(".").map { it.toIntOrNull() ?: 0 }
+        val latestParts = latest.removePrefix("v").split(".").map { it.toIntOrNull() ?: 0 }
 
         val maxLength = maxOf(currentParts.size, latestParts.size)
         val paddedCurrent = currentParts + List(maxLength - currentParts.size) { 0 }

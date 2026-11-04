@@ -92,6 +92,8 @@ object VideoPlayerHandler {
                         data.userAgent,
                         episode.name + " (${qualityOption.tag})"
                     )
+                else if (VideoPlayer.playerForSetting() == VideoPlayer.VLC)
+                    PlayVideoWithVLC.play(finalLink, data.userAgent, "")
                 else
                     PlayVideoWithMpv.play(
                         finalLink,
@@ -161,6 +163,8 @@ object VideoPlayerHandler {
                         data.userAgent,
                         episode.name + " (${qualityOption.tag})"
                     )
+                else if (VideoPlayer.playerForSetting() == VideoPlayer.VLC)
+                    PlayVideoWithVLC.play(downloadLink, data.userAgent, "")
                 else
                     PlayVideoWithMpv.play(
                         downloadLink,

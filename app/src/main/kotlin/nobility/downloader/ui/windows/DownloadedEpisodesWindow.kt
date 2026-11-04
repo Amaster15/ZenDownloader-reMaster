@@ -221,7 +221,7 @@ class DownloadedEpisodesWindow(
                     ) { _, episode ->
                         listOf(
                             DropdownOption(
-                                "Series Details",
+                                "Download",
                                 EvaIcons.Fill.Info
                             ) {
                                 Core.openSeriesDetails(

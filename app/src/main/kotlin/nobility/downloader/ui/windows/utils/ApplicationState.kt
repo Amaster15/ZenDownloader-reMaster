@@ -163,7 +163,7 @@ class ApplicationState {
                         title = title,
                         state = rememberWindowState(
                             position = WindowPosition.Aligned(alignment = windowAlignment),
-                            size = size,
+                            size = nobility.downloader.ui.theme.UiScale.windowSize(size),
                             placement = if (maximized)
                                 WindowPlacement.Maximized
                             else WindowPlacement.Floating
@@ -180,10 +180,12 @@ class ApplicationState {
                             LaunchedEffect(focused) {
                                 scope.focused.value = focused
                             }
-                            CoreTheme {
-                                scope.content()
-                                if (addToast) {
-                                    Toaster(scope)
+                            nobility.downloader.ui.theme.ScaledWindow(window) {
+                                CoreTheme {
+                                    scope.content()
+                                    if (addToast) {
+                                        Toaster(scope)
+                                    }
                                 }
                             }
                         }

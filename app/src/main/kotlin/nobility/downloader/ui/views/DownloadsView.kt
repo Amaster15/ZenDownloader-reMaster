@@ -178,7 +178,10 @@ class DownloadsView : ViewPage {
                         )
                     }
                 ),
-                Core.child.downloadList,
+                Core.child.downloadList.filter { download ->
+                    download.downloadProgress.value // Observe completion progress so rows move between tabs.
+                    if (Core.currentPage == Page.COMPLETED) download.isComplete else !download.isComplete
+                },
                 key = { it.nameAndResolution() + it.hashCode() },
                 lazyListState = lazyListState,
                 endingComparator = Tools.downloadProgressComparator,
@@ -198,7 +201,7 @@ class DownloadsView : ViewPage {
                             )
                         },
                         DropdownOption(
-                            "Series Details",
+                            "Download",
                             EvaIcons.Fill.Info
                         ) {
                             Core.openSeriesDetails(

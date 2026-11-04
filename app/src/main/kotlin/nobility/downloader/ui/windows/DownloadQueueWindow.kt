@@ -99,7 +99,7 @@ class DownloadQueueWindow {
                 ) { index, queue ->
                     listOf(
                         DropdownOption(
-                            "Series Details",
+                            "Download",
                             EvaIcons.Fill.Info
                         ) {
                             Core.openSeriesDetails(

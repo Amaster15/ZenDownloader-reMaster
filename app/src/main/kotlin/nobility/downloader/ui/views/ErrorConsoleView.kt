@@ -1,5 +1,8 @@
 package nobility.downloader.ui.views
 
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -17,9 +20,11 @@ class ErrorConsoleView: ViewPage {
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
+            Text("Error Console", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(16.dp))
+            Text("Download failures and connection problems. Copy the details below when troubleshooting.", modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
             Core.errorConsole.ConsoleTextField(
                 windowScope,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.weight(1f)
             )
         }
     }

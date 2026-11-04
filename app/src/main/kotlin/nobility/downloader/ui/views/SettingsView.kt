@@ -104,6 +104,27 @@ class SettingsView : ViewPage {
         this.windowScope = windowScope
         val focusManager = LocalFocusManager.current
         Scaffold(
+            topBar = {
+                Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                    Text("App updates", style = MaterialTheme.typography.titleMedium)
+                    Text("ZenDownloader reMaster ${AppInfo.VERSION} • Amaster15/ZenDownloader-reMaster", style = MaterialTheme.typography.bodySmall)
+                    androidx.compose.material3.TextButton(onClick = { Core.openUpdate() }) {
+                        Text("Check for updates")
+                    }
+                    Text("Download updates here, then install and restart. Your settings and library are kept.", style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(12.dp))
+                    Text("Interface size", style = MaterialTheme.typography.titleMedium)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(0, 100, 125, 150, 175, 200, 250).forEach { size ->
+                            androidx.compose.material3.FilterChip(
+                                selected = nobility.downloader.ui.theme.UiScale.percent == size,
+                                onClick = { nobility.downloader.ui.theme.UiScale.select(size) },
+                                label = { Text(if (size == 0) "Auto" else if (size == 100) "System" else "$size%") })
+                        }
+                    }
+                    Text("Auto adapts to your monitor without doubling system scaling. Changes save immediately.", style = MaterialTheme.typography.bodySmall)
+                }
+            },
             bottomBar = {
                 Column(
                     modifier = Modifier.fillMaxWidth()
@@ -152,6 +173,7 @@ class SettingsView : ViewPage {
             FullBox {
                 Column(
                     modifier = Modifier.padding(
+                        top = it.calculateTopPadding(),
                         bottom = it.calculateBottomPadding(),
                         end = verticalScrollbarEndPadding
                     ).fillMaxWidth()
@@ -172,15 +194,7 @@ class SettingsView : ViewPage {
                     //FieldRow(Defaults.VLC_PATH) todo fails without headers? I will try more later
                     FieldDropdown(Defaults.QUALITY)
                     FieldDropdown(Defaults.VIDEO_PLAYER)
-                    FlowRow(
-                        verticalArrangement = Arrangement.spacedBy(5.dp),
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                        maxItemsInEachRow = 10
-                    ) {
-                        Defaults.intFields.forEach { field ->
-                            FieldRowInt(field)
-                        }
-                    }
+                    DownloadSettings()
                     FlowRow(
                         verticalArrangement = Arrangement.spacedBy(5.dp),
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -431,91 +445,113 @@ class SettingsView : ViewPage {
         }
     }
 
-    @Suppress("SameParameterValue")
-    @OptIn(ExperimentalFoundationApi::class)
     @Composable
-    private fun FieldRowInt(
-        setting: Defaults
-    ) {
-        val option = intOptions[setting] ?: return
-        val title = setting.alternativeName.ifEmpty {
-            setting.name.normalizeEnumName()
-        }
-        val modifier = Modifier
-            .height(30.dp)
-            .width(80.dp)
-            .then(focusModifier)
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(8.dp)
-        ) {
-            Tooltip(setting.description) {
-                Text(
-                    "$title:",
-                    style = MaterialTheme.typography.labelMedium
-                )
-            }
-            val type = when (setting) {
-                Defaults.DOWNLOAD_THREADS -> {
-                    FieldType.THREADS
-                }
-
-                Defaults.TIMEOUT -> {
-                    FieldType.TIMEOUT
-                }
-
-                else -> {
-                    FieldType.DEFAULT
-                }
-            }
-            DefaultSettingsTextField(
-                if (option.value <= -1) "" else option.value.toString(),
-                { text ->
-                    option.value = textToDigits(
-                        type,
-                        text
-                    )
-                    updateSaveButton()
-                },
-                numbersOnly = true,
-                textStyle = MaterialTheme.typography.labelMedium,
-                modifier = modifier
-            )
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+    private fun DownloadSettings() {
+        var showAdvanced by remember { mutableStateOf(false) }
+        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            NumericSection("Downloads", "Control how many downloads run at once and how long connections wait.",
+                listOf(Defaults.DOWNLOAD_THREADS, Defaults.TIMEOUT))
+            NumericSection("Retries", "Retry temporary failures before skipping an episode.",
+                listOf(Defaults.VIDEO_RETRIES, Defaults.PAGE_LINK_RETRIES, Defaults.PAGE_LINK_RETRY_DELAY_SECONDS))
+            androidx.compose.material3.Surface(
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                DefaultIcon(
-                    EvaIcons.Fill.ArrowUp,
-                    Modifier.size(
-                        24.dp,
-                        16.dp
-                    ).pointerHoverIcon(PointerIcon.Hand),
-                    onClick = {
-                        option.value = fixedValue(
-                            type,
-                            option.value + 1
-                        )
-                        updateSaveButton()
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.material3.TextButton(onClick = { showAdvanced = !showAdvanced }) {
+                        Text(if (showAdvanced) "▾ Advanced retries" else "▸ Advanced retries",
+                            style = MaterialTheme.typography.titleMedium)
                     }
-                )
-
-                DefaultIcon(
-                    EvaIcons.Fill.ArrowDown,
-                    Modifier.size(
-                        24.dp,
-                        16.dp
-                    ).pointerHoverIcon(PointerIcon.Hand),
-                    onClick = {
-                        option.value = fixedValue(
-                            type,
-                            option.value - 1
-                        )
-                        updateSaveButton()
-                    }
-                )
+                    Text("Fine-tune individual download stages. Most users can keep the defaults.",
+                        style = MaterialTheme.typography.bodySmall)
+                    if (showAdvanced) NumericGrid(listOf(Defaults.FILE_SIZE_RETRIES, Defaults.QUALITY_RETRIES,
+                        Defaults.SIMPLE_RETRIES, Defaults.FULL_RETRIES, Defaults.PREMIUM_RETRIES, Defaults.M3U8_RETRIES))
+                }
             }
+        }
+    }
+
+    @Composable
+    private fun NumericSection(title: String, description: String, fields: List<Defaults>) {
+        androidx.compose.material3.Surface(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(description, style = MaterialTheme.typography.bodySmall)
+                NumericGrid(fields)
+            }
+        }
+    }
+
+    @Composable
+    private fun NumericGrid(fields: List<Defaults>) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val columns = if (maxWidth >= 1000.dp) 3 else if (maxWidth >= 560.dp) 2 else 1
+            Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                fields.chunked(columns).forEach { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                        row.forEach { setting -> Box(Modifier.weight(1f)) { FieldRowInt(setting) } }
+                        repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun FieldRowInt(setting: Defaults) {
+        val option = intOptions[setting] ?: return
+        val title = when (setting) {
+            Defaults.DOWNLOAD_THREADS -> "Simultaneous downloads"
+            Defaults.TIMEOUT -> "Network timeout"
+            Defaults.PAGE_LINK_RETRY_DELAY_SECONDS -> "Delay between page retries"
+            Defaults.M3U8_RETRIES -> "Stream (M3U8) retries"
+            else -> setting.name.normalizeEnumName()
+        }
+        val description = when (setting) {
+            Defaults.DOWNLOAD_THREADS -> "Maximum videos downloading at the same time."
+            Defaults.TIMEOUT -> "How long a network request waits for a response."
+            Defaults.VIDEO_RETRIES -> "Retries for the overall video download process."
+            Defaults.PAGE_LINK_RETRIES -> "Reload the page when a link is missing or servers are busy."
+            Defaults.PAGE_LINK_RETRY_DELAY_SECONDS -> "Wait before retrying a page or video connection."
+            Defaults.FILE_SIZE_RETRIES -> "Check the file size before trying another quality."
+            Defaults.QUALITY_RETRIES -> "Retry finding a playable video quality."
+            Defaults.SIMPLE_RETRIES -> "Retry direct page requests before using the browser."
+            Defaults.FULL_RETRIES -> "Retry loading the page in the browser."
+            Defaults.PREMIUM_RETRIES -> "Retry downloads using your WCO Premium account."
+            Defaults.M3U8_RETRIES -> "Retry a stream before checking another quality."
+            else -> setting.description
+        }
+        val type = when (setting) {
+            Defaults.DOWNLOAD_THREADS -> FieldType.THREADS
+            Defaults.TIMEOUT -> FieldType.TIMEOUT
+            else -> FieldType.DEFAULT
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(title, style = MaterialTheme.typography.labelLarge)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                androidx.compose.material3.OutlinedTextField(
+                    value = if (option.value < 0) "" else option.value.toString(),
+                    onValueChange = { text ->
+                        option.value = textToDigits(type, text)
+                        updateSaveButton()
+                    },
+                    singleLine = true,
+                    modifier = Modifier.width(112.dp).then(focusModifier),
+                    textStyle = MaterialTheme.typography.bodyMedium
+                )
+                Text(when (setting) {
+                    Defaults.TIMEOUT, Defaults.PAGE_LINK_RETRY_DELAY_SECONDS -> "seconds"
+                    Defaults.DOWNLOAD_THREADS -> "videos"
+                    else -> "retries"
+                }, style = MaterialTheme.typography.bodySmall)
+            }
+            Text(description, style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 
@@ -608,6 +644,12 @@ class SettingsView : ViewPage {
         }
         if (option.value == VideoPlayer.MPV.name) {
             FieldRow(Defaults.MPV_PATH)
+        }
+        if (setting == Defaults.VIDEO_PLAYER && option.value == VideoPlayer.VLC.name) {
+            FieldRow(Defaults.VLC_PATH)
+            DefaultButton("Get VLC") {
+                DialogHelper.showLinkPrompt("https://www.videolan.org/vlc/", prompt = false)
+            }
         }
     }
 

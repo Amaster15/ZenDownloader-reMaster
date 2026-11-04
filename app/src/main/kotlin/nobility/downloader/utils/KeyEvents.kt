@@ -38,6 +38,11 @@ class KeyEvents {
             Page.entries.forEach { page ->
                 var key1: Key
                 when (page) {
+                    Page.NEW_EPISODES -> { key1 = Key.F10 }
+                    Page.COMPLETED -> { key1 = Key.F11 }
+                    Page.DATABASE -> { key1 = Key.F8 }
+                    Page.FAVORITES -> { key1 = Key.F9 }
+                    Page.WATCH -> { key1 = Key.F7 }
                     Page.DOWNLOADER -> {
                         key1 = Key.F1
                     }
@@ -47,7 +52,7 @@ class KeyEvents {
                     Page.HISTORY -> {
                         key1 = Key.F3
                     }
-                    Page.RECENT -> {
+                    Page.FOLLOW -> {
                         key1 = Key.F4
                     }
                     Page.SETTINGS -> {

@@ -9,6 +9,9 @@ import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
@@ -46,27 +49,23 @@ fun DefaultImage(
     pointerIcon: PointerIcon? = PointerIcon.Hand,
     fastScrolling: Boolean = false,
     onRightClick: (() -> Unit)? = null,
-    onClick: (() -> Unit)? = null
+    onClick: (() -> Unit)? = null,
+    series: nobility.downloader.core.entities.Series? = null
 ) {
     val context = LocalPlatformContext.current
 
-    val imageFileExists = remember(imagePath) {
-        File(imagePath).exists()
-    }
-
-    LaunchedEffect(imageFileExists) {
-        if (!imageFileExists && urlBackup != null) {
-            Tools.downloadFileWithRetries(
-                urlBackup,
-                File(imagePath)
-            )
+    var localReady by remember(imagePath, urlBackup) { mutableStateOf(false) }
+    LaunchedEffect(imagePath, urlBackup) {
+        localReady = kotlinx.coroutines.withContext(Dispatchers.IO) {
+            if (series != null) nobility.downloader.utils.SeriesArtwork.ensure(series)
+            else nobility.downloader.utils.ThumbnailCache.ensure(File(imagePath), urlBackup)
         }
     }
 
     AsyncImage(
         model = imageRequest(
             context,
-            imagePath
+            if (localReady) File(imagePath).toURI().toString() else AppInfo.NO_IMAGE_PATH
         ),
         contentDescription = null,
         contentScale = contentScale,
@@ -95,14 +94,14 @@ fun DefaultImage(
         fallback = rememberAsyncImagePainter(
             model = imageRequest(
                 context,
-                urlBackup ?: AppInfo.NO_IMAGE_PATH
+                AppInfo.NO_IMAGE_PATH
             ),
             filterQuality = FilterQuality.Low
         ),
         error = rememberAsyncImagePainter(
             model = imageRequest(
                 context,
-                urlBackup ?: AppInfo.NO_IMAGE_PATH
+                AppInfo.NO_IMAGE_PATH
             ),
             filterQuality = FilterQuality.Low
         )

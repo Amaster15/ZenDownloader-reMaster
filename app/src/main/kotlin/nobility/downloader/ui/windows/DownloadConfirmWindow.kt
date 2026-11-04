@@ -120,7 +120,7 @@ class DownloadConfirmWindow(
                 DefaultImage(
                     series.imagePath,
                     series.imageLink,
-                    contentScale = ContentScale.FillBounds,
+                    contentScale = ContentScale.Fit,
                     modifier = Modifier.size(300.dp, 235.dp)
                         .padding(10.dp)
                         .align(Alignment.CenterHorizontally)
@@ -1072,6 +1072,11 @@ class DownloadConfirmWindow(
                             }
                         }
                         if (!movieMode) {
+                            val followShow = nobility.downloader.core.scraper.WatchCatalog.Show(
+                                series.name, series.slug.slugToLink(), nobility.downloader.core.scraper.WatchCatalog.Provider.WCO)
+                            DefaultButton(if (nobility.downloader.core.scraper.FollowSeries.isFollowing(followShow)) "Unfollow" else "Follow Series") {
+                                nobility.downloader.core.scraper.FollowSeries.toggle(followShow)
+                            }
                             DefaultButton(
                                 "Check For New Episodes",
                                 height = bottomBarButtonHeight,

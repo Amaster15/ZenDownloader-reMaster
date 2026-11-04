@@ -32,6 +32,42 @@ chmod +x run.sh
 
 Keep `app`, `runtime`, and `launcher.jar` together. Use the launcher scripts so the app can apply updates from this fork.
 
+## App updates
+
+Open **Settings → App updates → Check for updates** to check releases from this repository. Download the update inside the app, then choose **Install and restart** after stopping active downloads. Downloads are staged and validated before installation; your settings and library remain in your user profile.
+
+**Upgrading from 1.3.3 or earlier:** download and extract the full 1.4.0 ZIP once to get the new launcher. Keep the new `launcher.jar`, `app`, and `runtime` together, and launch using `run.bat` or `run.sh`. Updating only the JAR does not upgrade the old launcher.
+
+## Watching episodes
+
+Use the **Watch** tab beside Browse to play episodes. In Watch, choose WCO or HiAnime, search for a series (or paste its series URL), then choose an episode and press **Play**. Playback uses the FFplay, mpv, or VLC player selected in Watch or Settings, without opening the site's advertising pages. The **Get VLC** button opens the official VideoLAN download page; VLC must be installed separately. HiAnime currently supports the Ayame player and lists available dub/sub episodes separately.
+
+Watch reuses the WCO database for title search, stores episode lists for six hours, and shows when each list was saved. **Refresh episodes** checks the provider again; a failed refresh keeps the saved list visible. Media links are resolved afresh for each playback. WCO MP4 links are checked before the player starts and streamed through a private local connection with seeking support, using the downloader’s existing connection and certificate policy. WCO link retries follow the page retry settings and can be cancelled. HiAnime chunks are cleaned as they stream through a private local connection; closing the player releases that connection and its small memory cache.
+
+New episode downloads use the series title followed by a season/episode code, for example `Overgeared - S01E01 English Dubbed (720p).mp4`. Season labels from the source page and explicit title/URL season information takes priority over the series season; numbered episodes without a season label use season 1. Movies, unnumbered specials, fractional episodes, and combined episode ranges retain their titles. Existing files are not renamed.
+
+## Display scaling
+
+**Settings → Interface size** applies immediately and is saved automatically. **Auto** respects system scaling and raises the effective interface scale to 125% on 1440p displays or 200% on 4K displays when the desktop is reporting a smaller scale. **System** uses the operating system's scale; the other percentages apply an additional size adjustment. Fonts, buttons, spacing, and thumbnails scale together. Newly opened dialogs are sized to fit the display, and automatic scaling follows the window when it moves between monitors.
+
+## Navigation
+
+The four main tabs are **Browse**, **Watch**, **Downloads**, and **My Library**. Browse opens on startup, with search and filters above compact series rows. Watch, Download, Favorite (star), and Follow (bookmark) actions are visible on each row; descriptions and genres expand under Details. Right-click actions remain available.
+
+Downloads groups **Add downloads**, **Queue**, and **Completed**. My Library groups **New episodes**, **Followed**, **Favorites**, and **History**. Its badge and the new-episode banner show unread episode discoveries. Following checks series on startup; favoriting only saves a series. **Settings** opens the existing full settings page; **Error Console** is a labeled top-level action with a new-error indicator. Player selection and Get VLC remain in Watch.
+
+## Video database and favorites
+
+**Browse** browses the cached WCO library with title, URL, genre, description, and category filters. It refreshes when series details are cached or favorites change. **Update catalog** checks the live category indexes for missing titles without replacing your saved series, favorites, or history. Progress, cancellation, and provider errors appear in the tab. Open a series to load its episodes, or right-click **Update series details and thumbnail** to refresh an existing entry. WCO may block live updates with Cloudflare; failed updates retain saved data.
+
+Thumbnails load on demand, validate downloaded images before caching them, and use the existing upstream artwork archive when the original image is unavailable. Missing artwork uses a placeholder. Cached thumbnails work offline. Newly discovered titles resolve missing artwork from their series page as they become visible, with at most two page lookups at a time. Unavailable artwork is retried after a cooldown.
+
+Right-click a series and select **Add To Favorite**. The **My Library → Favorites** section uses the same saved favorites as Database, History, and the download episode window. Removing a favorite updates both tabs immediately. A bookmark icon marks followed shows next to the favorite star in Database, Favorites, and History. Right-click a series in Database, Favorites, or History to **Follow Series** or **Unfollow Series**. Database and Favorites also offer **Watch** and **Download**. Keyboard shortcuts: **F8** for Browse and **F9** for Favorites.
+
+## Following series
+
+Use **Follow** in Watch or **Follow Series** in a series' download episode list. The **My Library → Followed** section replaces Recent Series and keeps your followed shows across restarts. On each launch, the app checks their episode lists in the background. The first successful check establishes a baseline; later additions appear in a banner and the follow list until you choose **Mark seen**. **Check now** runs another check. Failed checks preserve the previous episode list and display the error. Following a show does not start downloads automatically.
+
 ## Downloading episodes
 
 1. Open the app and let the initial database assets finish downloading.

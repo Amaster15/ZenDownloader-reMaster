@@ -75,7 +75,8 @@ data class Series(
             SeriesIdentity.MOVIE -> BoxHelper.shared.moviesEpisodeBox
             SeriesIdentity.NEW -> BoxHelper.shared.miscEpisodeBox
         }
-        if (this.episodes.size < episodes.size) {
+        if (this.episodes.size <= episodes.size &&
+            this.episodes.map { it.slug to it.name } != episodes.map { it.slug to it.name }) {
             seriesBox.attach(this)
             episodeBox.remove(this.episodes)
             this.episodes.clear()

@@ -201,7 +201,7 @@ class DownloaderView : ViewPage {
                                 series.imagePath,
                                 modifier = Modifier.fillMaxWidth()
                                     .fillMaxHeight(0.8f),
-                                contentScale = ContentScale.FillBounds
+                                contentScale = ContentScale.Fit
                             )
                             Text(
                                 text = series.name,
@@ -337,7 +337,7 @@ class DownloaderView : ViewPage {
                                 ) {
                                     DefaultImage(
                                         series.imagePath,
-                                        contentScale = ContentScale.FillBounds,
+                                        contentScale = ContentScale.Fit,
                                         onClick = {
                                             Core.openSeriesDetails(
                                                 series.slug,
@@ -417,7 +417,7 @@ class DownloaderView : ViewPage {
                                 ) {
                                     DefaultImage(
                                         series.imagePath,
-                                        contentScale = ContentScale.FillBounds,
+                                        contentScale = ContentScale.Fit,
                                         onClick = {
                                             Core.openSeriesDetails(
                                                 series.slug,
@@ -505,21 +505,6 @@ class DownloaderView : ViewPage {
 
     override val menuOptions: List<OverflowOption>
         get() = listOf(
-            OverflowOption(
-                EvaIcons.Fill.CloudDownload,
-                "Check For Updates",
-            ) {
-                Core.openUpdate()
-            },
-            OverflowOption(
-                EvaIcons.Fill.Gift,
-                "Donate",
-            ) {
-                DialogHelper.showLinkPrompt(
-                    "https://donate.stripe.com/6oEeV1aGb9lZgCIfYY",
-                    prompt = false
-                )
-            },
             OverflowOption(
                 EvaIcons.Fill.Book,
                 "How To Use",

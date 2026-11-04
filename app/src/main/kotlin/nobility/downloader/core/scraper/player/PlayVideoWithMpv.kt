@@ -26,7 +26,9 @@ object PlayVideoWithMpv {
         url: String,
         userAgent: String,
         windowTitle: String = url,
-        mpvPath: String = Defaults.MPV_PATH.string().ifEmpty { "mpv" }
+        mpvPath: String = Defaults.MPV_PATH.string().ifEmpty { "mpv" },
+        referer: String = "",
+        onStarted: (Process) -> Unit = {}
     ): Resource<Boolean> {
 
         if (!isMpvInstalled(mpvPath)) {
@@ -37,7 +39,7 @@ object PlayVideoWithMpv {
             "Using mpv path: $mpvPath"
         )
 
-        val command = listOf(
+        val command = mutableListOf(
             mpvPath,
             "--force-window=yes",
             "--title=$windowTitle",
@@ -47,8 +49,9 @@ object PlayVideoWithMpv {
             "--user-agent=$userAgent",
             "--cookies=yes",
             "--quiet",
-            "\"$url\""
+            url
         )
+        if (referer.isNotEmpty()) command.add(1, "--referrer=$referer")
         return try {
 
             val process = ProcessBuilder(command)
@@ -56,7 +59,11 @@ object PlayVideoWithMpv {
                 .redirectErrorStream(true)
                 .start()
 
+            if (process.waitFor(750, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                return Resource.Error("Player exited before playback started (exit ${process.exitValue()}). Check player settings and try again.")
+            }
             Core.child.runningProcesses.add(process)
+            onStarted(process)
 
             Resource.Success(true)
         } catch (e: Exception) {

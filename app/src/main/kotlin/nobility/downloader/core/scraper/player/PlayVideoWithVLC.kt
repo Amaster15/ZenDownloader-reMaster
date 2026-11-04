@@ -8,25 +8,25 @@ import nobility.downloader.utils.fileExists
 import java.io.IOException
 
 
-//not supported without a proxy.
-//will leave here just in case.
 @Suppress("UNUSED")
 object PlayVideoWithVLC {
 
     fun play(
         videoUrl: String,
         userAgent: String,
-        referrer: String
+        referrer: String,
+        onStarted: (Process) -> Unit = {}
     ): Resource<Boolean> {
 
         val vlcPath = findVlcPath()
 
         if (vlcPath == null) {
-            return Resource.Error("Failed to find valid vlc path.")
+            return Resource.Error("VLC was not found. Install VLC or set its executable path in Settings.")
         }
 
         val command = listOf(
             vlcPath,
+            "--no-one-instance",
             "--http-user-agent=$userAgent",
             "--http-referrer=$referrer",
             "--no-video-title-show",
@@ -38,16 +38,19 @@ object PlayVideoWithVLC {
         )
 
         return try {
-            ProcessBuilder(command)
-                .inheritIO()
-                .start()
+            val process = ProcessBuilder(command).inheritIO().start()
+            if (process.waitFor(750, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                return Resource.Error("VLC exited during startup (exit ${process.exitValue()}). Check its executable path and Error Console.")
+            }
+            nobility.downloader.core.Core.child.runningProcesses.add(process)
+            onStarted(process)
             Resource.Success(true)
         } catch (e: Exception) {
             Resource.Error(e)
         }
     }
 
-    private fun findVlcPath(
+    fun findVlcPath(
         customVlcPath: String? = Defaults.VLC_PATH.string()
     ): String? {
 
@@ -77,9 +80,12 @@ object PlayVideoWithVLC {
         return try {
             val process = ProcessBuilder("vlc", "--version")
                 .redirectErrorStream(true)
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
                 .start()
-            process.waitFor()
-            process.exitValue() == 0
+            if (!process.waitFor(3, java.util.concurrent.TimeUnit.SECONDS)) {
+                process.destroyForcibly()
+                false
+            } else process.exitValue() == 0
         } catch (_: IOException) {
             false
         } catch (_: InterruptedException) {

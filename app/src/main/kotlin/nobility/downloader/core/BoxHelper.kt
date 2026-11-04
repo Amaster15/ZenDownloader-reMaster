@@ -397,6 +397,7 @@ class BoxHelper {
                                 }
                                 series.updateLastUpdated()
                                 shared.dubbedSeriesBox.put(series)
+                                LibraryChanges.refresh()
                                 return true
                             }
                     }
@@ -418,6 +419,7 @@ class BoxHelper {
                                 }
                                 series.updateLastUpdated()
                                 shared.subbedSeriesBox.put(series)
+                                LibraryChanges.refresh()
                                 return true
                             }
                     }
@@ -439,6 +441,7 @@ class BoxHelper {
                                 }
                                 series.updateLastUpdated()
                                 shared.cartoonSeriesBox.put(series)
+                                LibraryChanges.refresh()
                                 return true
                             }
                     }
@@ -460,6 +463,7 @@ class BoxHelper {
                                 }
                                 series.updateLastUpdated()
                                 shared.moviesSeriesBox.put(series)
+                                LibraryChanges.refresh()
                                 return true
                             }
                     }
@@ -481,6 +485,7 @@ class BoxHelper {
                                 }
                                 series.updateLastUpdated()
                                 shared.miscSeriesBox.put(series)
+                                LibraryChanges.refresh()
                                 return true
                             }
                     }
@@ -805,6 +810,7 @@ class BoxHelper {
                     val favorite = it.findUniqueOrNull()
                     if (favorite != null) {
                         shared.favoriteBox.remove(favorite)
+                        LibraryChanges.refresh()
                     }
                 }
         }

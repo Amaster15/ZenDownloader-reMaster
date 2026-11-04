@@ -53,15 +53,18 @@ class Core private constructor() {
 
         lateinit var settingsView: SettingsView
         lateinit var downloaderView: DownloaderView
+        lateinit var watchView: WatchView
         lateinit var downloadsView: DownloadsView
         lateinit var historyView: HistoryView
-        lateinit var recentView: RecentView
+        lateinit var followSeriesView: FollowSeriesView
+        lateinit var databaseView: DatabaseWindow
+        lateinit var favoritesView: DatabaseWindow
         lateinit var errorConsoleView: ErrorConsoleView
 
         val taskScope = CoroutineScope(Dispatchers.Default)
-        var currentPage by mutableStateOf(Page.DOWNLOADER)
+        var currentPage by mutableStateOf(Page.DATABASE)
             private set
-        var lastPage = Page.DOWNLOADER
+        var lastPage = Page.DATABASE
         var currentUrl by mutableStateOf("")
         var currentUrlHint by mutableStateOf("")
         var startButtonEnabled by mutableStateOf(true)
@@ -127,12 +130,16 @@ class Core private constructor() {
                 file.deleteRecursively()
             }
             BoxHelper.init()
+            nobility.downloader.ui.theme.UiScale.load()
             child.init()
             downloaderView = DownloaderView()
+            watchView = WatchView()
             downloadsView = DownloadsView()
             settingsView = SettingsView()
             historyView = HistoryView()
-            recentView = RecentView()
+            followSeriesView = FollowSeriesView()
+            databaseView = DatabaseWindow()
+            favoritesView = DatabaseWindow(favoritesOnly = true)
             errorConsoleView = ErrorConsoleView()
             currentUrl = Defaults.LAST_DOWNLOAD.string()
             startButtonText = if (Tools.isUrl(currentUrl)) "Start" else "Search DB"
@@ -154,6 +161,8 @@ class Core private constructor() {
             reloadRandomSeries()
             initialized = true
             openUpdate(true)
+            nobility.downloader.core.scraper.FollowSeries.load()
+            nobility.downloader.core.scraper.FollowSeries.checkAll()
         }
 
         fun changePage(page: Page) {
@@ -246,8 +255,8 @@ class Core private constructor() {
         fun openWco(
             initialSearch: String = ""
         ) {
-            val databaseWindow = DatabaseWindow()
-            databaseWindow.open(initialSearch)
+            databaseView.search(initialSearch)
+            changePage(Page.DATABASE)
         }
 
         fun openImageUpdater() {
@@ -298,7 +307,7 @@ class Core private constructor() {
                 series = pair?.first
                 episode = pair?.second
             }
-            if (series == null) {
+            if (series == null || series.episodesSize == 0) {
                 appWindowScope?.showToast(
                     """
                         This series or episode isn't cached.

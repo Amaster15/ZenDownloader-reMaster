@@ -3,7 +3,7 @@ package nobility.downloader.core.settings
 import nobility.downloader.core.BoxHelper.Companion.string
 
 enum class VideoPlayer {
-    FFPLAY, MPV;
+    FFPLAY, MPV, VLC;
 
     companion object {
 

@@ -98,9 +98,15 @@ class VideoDownloadData(
     ): File {
         val series = seriesForSlug(queue.episode.seriesSlug)
         val downloadFolderPath = Defaults.SAVE_FOLDER.string()
-        val episodeName = queue.episode.name.fixForFiles() + extraName
+        val episode = queue.episode
+        val numbering = nobility.downloader.utils.EpisodeNaming.numbering(
+            episode.name, episode.slug, series?.name ?: episode.seriesName, episode.isMovie
+        )
+        val episodeName = nobility.downloader.utils.EpisodeNaming.downloadFilename(
+            episode.name, episode.slug, series?.name ?: episode.seriesName, episode.isMovie
+        ).fixForFiles() + extraName
         val seasonFolder = if (Defaults.SEPARATE_SEASONS.boolean())
-            Tools.findSeasonFromEpisode(episodeName) else null
+            numbering?.let { "Season ${it.season.toString().padStart(2, '0')}" } else null
         var saveFolder = File(
             downloadFolderPath + File.separator
                     + (series?.name?.fixForFiles() ?: "NoSeries")

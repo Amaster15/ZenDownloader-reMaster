@@ -44,13 +44,40 @@ import kotlin.system.exitProcess
 @Composable
 fun MainWindow(scope: AppWindowScope) {
     UiWrapper {
+        Column(Modifier.fillMaxSize()) {
+            val subPages = when (Core.currentPage.mainPage) {
+                Page.DOWNLOADER -> listOf(Page.DOWNLOADER, Page.DOWNLOADS, Page.COMPLETED)
+                Page.FOLLOW -> listOf(Page.NEW_EPISODES, Page.FOLLOW, Page.FAVORITES, Page.HISTORY)
+                else -> emptyList()
+            }
+            if (subPages.isNotEmpty()) {
+                LazyRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(subPages) { page ->
+                        FilterChip(selected = Core.currentPage == page, onClick = { Core.changePage(page) }, label = {
+                            Text(when (page) {
+                                Page.DOWNLOADER -> "Add downloads"
+                                Page.DOWNLOADS -> "Queue"
+                                Page.FOLLOW -> "Followed"
+                                Page.NEW_EPISODES -> "New episodes (${nobility.downloader.core.scraper.FollowSeries.unreadCount})"
+                                else -> page.title
+                            })
+                        })
+                    }
+                }
+            }
+            Box(Modifier.weight(1f)) {
         when (Core.currentPage) {
             Page.DOWNLOADER -> Core.downloaderView.Ui(scope)
-            Page.DOWNLOADS -> Core.downloadsView.Ui(scope)
+            Page.WATCH -> Core.watchView.Ui(scope)
+            Page.DOWNLOADS, Page.COMPLETED -> Core.downloadsView.Ui(scope)
             Page.SETTINGS -> Core.settingsView.Ui(scope)
             Page.HISTORY -> Core.historyView.Ui(scope)
-            Page.RECENT -> Core.recentView.Ui(scope)
+            Page.FOLLOW, Page.NEW_EPISODES -> Core.followSeriesView.Ui(scope)
+            Page.DATABASE -> Core.databaseView.Ui(scope)
+            Page.FAVORITES -> Core.favoritesView.Ui(scope)
             Page.ERROR_CONSOLE -> Core.errorConsoleView.Ui(scope)
+        }
+            }
         }
     }
 }
@@ -68,6 +95,7 @@ private fun UiWrapper(
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             topBar = {
+                Column {
                 TopAppBar(
                     modifier = Modifier.height(Constants.topBarHeight),
                     title = {
@@ -77,8 +105,8 @@ private fun UiWrapper(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = Core.currentPage.title,
-                                modifier = Modifier.width(170.dp),
+                                text = "ZenDownloader reMaster",
+                                modifier = Modifier.weight(1f, fill = false),
                                 fontSize = MaterialTheme.typography.headlineSmall.fontSize,
                                 color = MaterialTheme.colorScheme.onPrimary,
                                 maxLines = 1,
@@ -93,91 +121,25 @@ private fun UiWrapper(
                             ) {
                                 ThemeEditorWindow.open()
                             }
-                            val coroutineScope = rememberCoroutineScope()
-                            val listState = rememberLazyListState()
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.align(Alignment.Bottom)
-                                    .draggable(
-                                        state = rememberDraggableState {
-                                            coroutineScope.launch {
-                                                listState.scrollBy(-it)
-                                            }
-                                        },
-                                        orientation = Orientation.Horizontal
-                                    )
-                                    .horizontalWheelScroll { scroll ->
-                                        coroutineScope.launch {
-                                            listState.scrollBy(scroll)
-                                        }
-                                    },
-                                state = listState
-                            ) {
-                                items(
-                                    Page.entries,
-                                    key = { it.name }
-                                ) { page ->
-                                    when (page) {
-                                        Page.DOWNLOADS -> {
-                                            BadgedBox(
-                                                badge = {
-                                                    if (Core.child.downloadThread.downloadsInQueue.value > 0) {
-                                                        Badge(
-                                                            containerColor = Color.Red,
-                                                            modifier = Modifier.offset(y = 2.dp, x = (-8).dp)
-                                                        ) {
-                                                            Text(
-                                                                Core.child.downloadThread.downloadsInQueue.value.toString(),
-                                                                overflow = TextOverflow.Clip,
-                                                                color = Color.White,
-                                                                fontWeight = FontWeight.Bold,
-                                                                fontSize = 10.sp
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                            ) {
-                                                PageButton(page)
-                                            }
-                                        }
-                                        Page.ERROR_CONSOLE -> {
-                                            BadgedBox(
-                                                badge = {
-                                                    if (Core.errorConsole.consoleState.unreadErrors) {
-                                                        Badge(
-                                                            containerColor = Color.Red,
-                                                            modifier = Modifier.offset(y = 2.dp, x = (-8).dp)
-                                                        ) {}
-                                                    }
-                                                }
-                                            ) {
-                                                PageButton(page)
-                                            }
-                                        }
-                                        else -> {
-                                            PageButton(page)
-                                        }
-                                    }
-                                }
-                                item(key = {"database-button"}) {
-                                    TabButton(
-                                        "Video Database 📁"
-                                    ) {
-                                        Core.openWco()
-                                    }
-                                }
-                            }
+
                         }
                     },
                     actions = {
+                        TextButton(
+                            onClick = { Core.openSettings() },
+                            colors = ButtonDefaults.textButtonColors(contentColor = Color.Black)
+                        ) { Text("Settings") }
+                        TextButton(
+                            onClick = { Core.changePage(Page.ERROR_CONSOLE) },
+                            colors = ButtonDefaults.textButtonColors(contentColor = Color.Black)
+                        ) {
+                            Text(if (Core.errorConsole.consoleState.unreadErrors) "Error Console • New" else "Error Console")
+                        }
+
                         Tooltip("Support development on Buy Me a Coffee") {
                             Button(
                                 onClick = {
-                                    DialogHelper.showLinkPrompt(
-                                        "https://buymeacoffee.com/amaster15",
-                                        prompt = false
-                                    )
+                                    DialogHelper.showLinkPrompt("https://buymeacoffee.com/amaster15", prompt = false)
                                 },
                                 modifier = Modifier.height(30.dp).padding(end = 6.dp),
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
@@ -247,6 +209,43 @@ private fun UiWrapper(
                             .tone(65.0)
                     )
                 )
+                            val coroutineScope = rememberCoroutineScope()
+                            val listState = rememberLazyListState()
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                                    .draggable(
+                                        state = rememberDraggableState {
+                                            coroutineScope.launch {
+                                                listState.scrollBy(-it)
+                                            }
+                                        },
+                                        orientation = Orientation.Horizontal
+                                    )
+                                    .horizontalWheelScroll { scroll ->
+                                        coroutineScope.launch {
+                                            listState.scrollBy(scroll)
+                                        }
+                                    },
+                                state = listState
+                            ) {
+                                items(
+                                    Page.mainPages,
+                                    key = { it.name }
+                                ) { page ->
+                                    val count = when(page) {
+                                        Page.FOLLOW -> nobility.downloader.core.scraper.FollowSeries.unreadCount
+                                        Page.DOWNLOADER -> Core.child.downloadThread.downloadsInQueue.value
+                                        else -> 0
+                                    }
+                                    FilterChip(selected = Core.currentPage.mainPage == page,
+                                        onClick = { Core.changePage(page) }, label = {
+                                            Text(page.mainTitle + if (count > 0) " ($count)" else "")
+                                        })
+                                }
+                            }
+                }
             },
             content = { paddingValues ->
                 if (Core.child.shutdownExecuted) {
@@ -304,10 +303,17 @@ private fun UiWrapper(
                         }
                     }
                 }
-                Box(
-                    modifier = Modifier.padding(paddingValues)
-                ) {
-                    content()
+                Column(modifier = Modifier.padding(paddingValues)) {
+                    val unread = nobility.downloader.core.scraper.FollowSeries.unreadCount
+                    if (unread > 0) {
+                        Surface(color = MaterialTheme.colorScheme.secondaryContainer) {
+                            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("$unread new episode(s) in followed series", modifier = Modifier.weight(1f))
+                                TextButton(onClick = { Core.changePage(Page.NEW_EPISODES) }) { Text("View updates") }
+                            }
+                        }
+                    }
+                    Box(Modifier.weight(1f)) { content() }
                 }
             }
         )

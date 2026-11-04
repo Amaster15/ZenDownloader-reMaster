@@ -11,6 +11,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import compose.icons.EvaIcons
+import compose.icons.evaicons.fill.BookOpen
 import compose.icons.evaicons.Fill
 import compose.icons.evaicons.Outline
 import compose.icons.evaicons.fill.Info
@@ -156,18 +157,7 @@ class HistoryView : ViewPage {
                                 Box(
                                     modifier = Modifier.fillMaxSize()
                                 ) {
-                                    val favorited = BoxHelper
-                                        .isSeriesFavorited(seriesData.series)
-
-                                    if (favorited) {
-                                        DefaultIcon(
-                                            EvaIcons.Fill.Star,
-                                            iconColor = Color.Yellow,
-                                            modifier = Modifier
-                                                .padding(start = 4.dp, top = 8.dp)
-                                                .align(Alignment.TopStart)
-                                        )
-                                    }
+                                    SeriesBadges(seriesData.series, Modifier.padding(start = 4.dp, top = 8.dp).align(Alignment.TopStart))
                                     Text(
                                         text = seriesData.series.name,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -215,7 +205,7 @@ class HistoryView : ViewPage {
                                 seriesData.series.imagePath,
                                 seriesData.series.imageLink,
                                 fastScrolling = fastScrolling,
-                                contentScale = ContentScale.FillBounds,
+                                contentScale = ContentScale.Fit,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -234,7 +224,7 @@ class HistoryView : ViewPage {
 
                     listOf(
                         DropdownOption(
-                            "Series Details",
+                            "Download",
                             EvaIcons.Fill.Info
                         ) {
                             Core.openSeriesDetails(
@@ -272,6 +262,13 @@ class HistoryView : ViewPage {
                                 BoxMaker.makeFavorite(seriesData.series.slug)
                             }
                             forceUpdateName++
+                        },
+                        DropdownOption(
+                            if (nobility.downloader.core.scraper.FollowSeries.isFollowing(nobility.downloader.ui.windows.database.DatabaseWindow.followShow(seriesData.series))) "Unfollow Series" else "Follow Series",
+                            EvaIcons.Fill.BookOpen,
+                            visible = seriesData.series.seriesIdentity != nobility.downloader.core.entities.data.SeriesIdentity.MOVIE
+                        ) {
+                            nobility.downloader.core.scraper.FollowSeries.toggle(nobility.downloader.ui.windows.database.DatabaseWindow.followShow(seriesData.series))
                         },
                         DropdownOption(
                             "Remove From History",

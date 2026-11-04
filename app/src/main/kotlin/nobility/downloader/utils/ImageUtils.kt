@@ -17,28 +17,8 @@ object ImageUtils {
     val noImage = loadImageBitmapFromResource(AppInfo.NO_IMAGE_PATH)
 
     suspend fun downloadSeriesImage(series: Series) {
-        if (series.imageLink.isEmpty() || series.imageLink == "N/A") {
-            return
-        }
-        val saveFolder = File(BoxHelper.seriesImagesPath)
-        if (!saveFolder.exists() && !saveFolder.mkdirs()) {
-            FrogLog.message("Failed to download series image: ${series.imageLink}. Save folder was unable to be created.")
-            return
-        }
-        val saveFile = File(series.imagePath)
-        if (!saveFile.exists() || saveFile.length() <= 50L) {
-            try {
-                //println("Downloading image: ${series.imageLink}")
-                Tools.downloadFileWithRetries(
-                    series.imageLink,
-                    saveFile
-                )
-            } catch (e: Exception) {
-                FrogLog.error(
-                    "Failed to download image for ${series.imageLink}",
-                    e
-                )
-            }
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            ThumbnailCache.ensure(File(series.imagePath), series.imageLink)
         }
     }
 

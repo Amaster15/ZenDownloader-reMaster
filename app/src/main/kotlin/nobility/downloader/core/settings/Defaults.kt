@@ -21,6 +21,7 @@ enum class Defaults(
     val description: String = "",
     val alternativeName: String = ""
 ) {
+    UI_SCALE("ui_scale_percent", 0, "Automatic display scaling; manual sizes are relative to system scaling.", "Interface size"),
     TIMEOUT(
         "timeout",
         30,

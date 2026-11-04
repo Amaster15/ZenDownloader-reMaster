@@ -40,6 +40,7 @@ import nobility.downloader.core.BoxHelper
 import nobility.downloader.core.BoxHelper.Companion.boolean
 import nobility.downloader.core.BoxHelper.Companion.int
 import nobility.downloader.core.BoxHelper.Companion.update
+import nobility.downloader.core.scraper.DatabaseUpdater
 import nobility.downloader.core.BoxMaker
 import nobility.downloader.core.Core
 import nobility.downloader.core.entities.Series
@@ -54,20 +55,23 @@ import nobility.downloader.utils.Constants.mediumIconSize
 import nobility.downloader.utils.Tools
 import nobility.downloader.utils.hover
 import nobility.downloader.utils.linkToSlug
+import nobility.downloader.utils.slugToLink
 import java.util.regex.Pattern
 
 /**
- * A window for showing the video database.
- * Mostly everything has been handcrafted and I couldn't be happier.
+ * Shared database and favorites tab, backed by the persisted series library.
  * @author NobilityDev
  */
-class DatabaseWindow {
+class DatabaseWindow(private val favoritesOnly: Boolean = false) : nobility.downloader.ui.views.ViewPage {
+    override val page = if (favoritesOnly) nobility.downloader.Page.FAVORITES else nobility.downloader.Page.DATABASE
+    fun search(text: String) { mSearchText.value = text }
+
 
     private lateinit var windowScope: AppWindowScope
     private var loading by mutableStateOf(false)
     private var resultText by mutableStateOf("")
 
-    private val mShowFavorites = MutableStateFlow(false)
+    private val mShowFavorites = MutableStateFlow(favoritesOnly)
     private val showFavorites = mShowFavorites.asStateFlow()
 
     private val mSearchByGenre = MutableStateFlow(
@@ -81,11 +85,12 @@ class DatabaseWindow {
     private val searchByDesc = mSearchByDesc.asStateFlow()
 
     private val mDatabaseType = MutableStateFlow(
-        DatabaseType.typeForId(Defaults.DB_LAST_TYPE_USED.int())
+        if (favoritesOnly) DatabaseType.ALL else DatabaseType.typeForId(Defaults.DB_LAST_TYPE_USED.int())
     )
     private val databaseType = mDatabaseType.asStateFlow()
 
-    private val searchText = Core.databaseSearchText.asStateFlow()
+    private val mSearchText = if (favoritesOnly) MutableStateFlow("") else Core.databaseSearchText
+    private val searchText = mSearchText.asStateFlow()
 
     @Suppress("TYPE_INTERSECTION_AS_REIFIED_WARNING")
     private val series = combine(
@@ -93,51 +98,23 @@ class DatabaseWindow {
         searchText,
         searchByGenre,
         searchByDesc,
-        showFavorites
+        showFavorites,
+        nobility.downloader.core.LibraryChanges.revision
     ) { seriesData ->
-        //val type = it[0] as DatabaseType
-        val search = seriesData[1] as String
+        // Each library revision re-reads the persisted catalog and favorite membership.
+        val selectedType = seriesData[0] as DatabaseType
+        val search = if (favoritesOnly) "" else seriesData[1] as String
         val byGenre = seriesData[2] as Boolean
         val byDesc = seriesData[3] as Boolean
         val favorite = seriesData[4] as Boolean
-        if (search.isBlank()) {
-            if (favorite) {
-                databaseByType.filter {
-                    BoxHelper.isSeriesFavorited(it)
-                }
-            } else {
-                databaseByType
-            }
-        } else {
-            databaseByType.filter {
-                var foundGenre = false
-                if (byGenre) {
-                    for (genre in it.filteredGenres) {
-                        if (genre.equals(search, true)) {
-                            foundGenre = true
-                            break
-                        }
-                    }
-                }
-                if (favorite) {
-                    BoxHelper.isSeriesFavorited(it)
-                } else {
-                    true
-                } && it.name.contains(search, true)
-                        || it.slug == search.linkToSlug()
-                        || (byDesc && it.description.contains(search, true))
-                        || foundGenre
-            }
+        val favoriteSlugs = BoxHelper.shared.favoriteBox.all.map { it.seriesSlug }.toSet()
+        databaseForType(selectedType).filter {
+            matches(it, search, byGenre, byDesc, favorite, favoriteSlugs)
         }
-    }.stateIn(
-        Core.taskScope,
-        SharingStarted.WhileSubscribed(5000),
-        databaseByType
-    )
+    }.flowOn(kotlinx.coroutines.Dispatchers.IO)
 
-    private val databaseByType: List<Series>
-        get() {
-            return when (databaseType.value) {
+    private fun databaseForType(type: DatabaseType): List<Series> {
+            return when (type) {
                 DatabaseType.ALL -> BoxHelper.allSeries
                 DatabaseType.DUBBED -> BoxHelper.dubbed
                 DatabaseType.SUBBED -> BoxHelper.subbed
@@ -147,365 +124,100 @@ class DatabaseWindow {
             }
         }
 
-    @OptIn(ExperimentalFoundationApi::class)
-    fun open(
-        initialSearch: String = ""
-    ) {
-        Core.databaseSearchText.value = initialSearch
-        ApplicationState.newWindow(
-            "Database",
-            maximized = true
-        ) {
-            windowScope = this@newWindow
-            val seasonsListState = rememberLazyListState()
-            val fastScrolling by rememberScrollSpeed(seasonsListState)
-            var forceUpdateName by mutableStateOf(0)
-
-            Scaffold(
-                modifier = Modifier.fillMaxSize(50f),
-                bottomBar = {
-                    Column(
-                        modifier = Modifier.fillMaxWidth()
-                            .wrapContentHeight(Alignment.Bottom).padding(bottom = 4.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(5.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            val favorite by showFavorites.collectAsState()
-                            TooltipIconButton(
-                                if (favorite)
-                                    "Show Only Favorites On"
-                                else "Show Only Favorites Off",
-                                EvaIcons.Fill.Star,
-                                iconColor = if (favorite)
-                                    Color.Yellow else MaterialTheme.colorScheme.onSurface
-                            ) {
-                                mShowFavorites.value = showFavorites.value.not()
-                            }
-                            TooltipIconButton(
-                                "Genres",
-                                EvaIcons.Fill.BookOpen,
-                                iconColor = MaterialTheme.colorScheme.primary
-                            ) {
-                                openGenresWindow()
-                            }
-                            val focusRequester = remember { FocusRequester() }
-                            val search by searchText.collectAsState()
-                            DefaultSettingsTextField(
-                                search,
-                                onValueChanged = {
-                                    Core.databaseSearchText.value = it
-                                },
-                                hint = randomSearchHint,
-                                textStyle = MaterialTheme.typography.labelLarge,
-                                modifier = Modifier.fillMaxWidth(0.50f)
-                                    .padding(end = 10.dp)
-                                    .height(40.dp),
-                                requestFocus = true,
-                                focusRequester = focusRequester,
-                                trailingIcon = {
-                                    if (search.isNotEmpty()) {
-                                        DefaultIcon(
-                                            EvaIcons.Fill.Close,
-                                            Modifier.size(mediumIconSize)
-                                                .pointerHoverIcon(PointerIcon.Hand),
-                                            iconColor = MaterialTheme.colorScheme.primary,
-                                            onClick = {
-                                                Core.databaseSearchText.value = ""
-                                                focusRequester.requestFocus()
-                                            }
-                                        )
-                                    }
-                                }
-                            )
-                            val searchByGenre by searchByGenre.collectAsState()
-                            val searchByDesc by searchByDesc.collectAsState()
-                            val genreTooltip = "Enables searching by genre. Search by genre is case sensitive."
-                            Tooltip(genreTooltip) {
-                                DefaultCheckbox(
-                                    searchByGenre,
-                                    modifier = Modifier.padding(vertical = 10.dp)
-                                        .pointerHoverIcon(PointerIcon.Hand)
-                                ) {
-                                    mSearchByGenre.value = searchByGenre.not()
-                                    Defaults.DB_SEARCH_GENRE.update(mSearchByGenre.value)
-                                }
-                            }
-                            Tooltip(genreTooltip) {
-                                Text(
-                                    "Genre",
-                                    fontSize = 14.sp,
-                                    modifier = Modifier.onClick {
-                                        mSearchByGenre.value = searchByGenre.not()
-                                        Defaults.DB_SEARCH_GENRE.update(mSearchByGenre.value)
-                                    }.padding(top = 10.dp, bottom = 15.dp)
-                                        .pointerHoverIcon(PointerIcon.Hand)
-                                )
-                            }
-                            val descTooltip = "Enables searching by description keywords."
-                            Tooltip(descTooltip) {
-                                DefaultCheckbox(
-                                    searchByDesc,
-                                    modifier = Modifier
-                                        .padding(vertical = 10.dp)
-                                        .pointerHoverIcon(PointerIcon.Hand)
-                                ) {
-                                    mSearchByDesc.value = searchByDesc.not()
-                                    Defaults.DB_SEARCH_DESC.update(mSearchByDesc.value)
-                                }
-                            }
-                            Tooltip(descTooltip) {
-                                Text(
-                                    "Description",
-                                    fontSize = 14.sp,
-                                    modifier = Modifier.onClick {
-                                        mSearchByDesc.value = searchByDesc.not()
-                                        Defaults.DB_SEARCH_DESC.update(mSearchByDesc.value)
-                                    }.padding(top = 10.dp, bottom = 15.dp)
-                                        .pointerHoverIcon(PointerIcon.Hand)
-                                )
-                            }
-                        }
-                        Text(
-                            resultText,
-                            fontSize = 14.sp,
-                            modifier = Modifier.padding(4.dp)
-                        )
-                        val type by databaseType.collectAsState()
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(bottom = 10.dp)
-                        ) {
-                            items(
-                                DatabaseType.entries,
-                                key = { it.title }
-                            ) {
-                                DefaultButton(
-                                    it.title,
-                                    Modifier.size(110.dp, 35.dp)
-                                        .padding(horizontal = 2.dp)
-                                        .pointerHoverIcon(PointerIcon.Hand)
-                                    ,
-                                    enabled = !loading,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (type == it)
-                                            MaterialTheme.colorScheme.tertiary
-                                        else MaterialTheme.colorScheme.primary,
-                                        contentColor = if (type == it)
-                                            MaterialTheme.colorScheme.onTertiary
-                                        else MaterialTheme.colorScheme.onPrimary
-                                    )
-                                ) {
-                                    mDatabaseType.value = it
-                                    Defaults.DB_LAST_TYPE_USED.update(mDatabaseType.value.id)
-                                }
-                            }
-                        }
-                    }
+    @OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
+    @Composable
+    override fun Ui(windowScope: AppWindowScope) {
+        this.windowScope = windowScope
+        LaunchedEffect(Unit) { nobility.downloader.core.LibraryChanges.refresh() }
+        val revision by nobility.downloader.core.LibraryChanges.revision.collectAsState()
+        val entries by series.collectAsState(initial = emptyList())
+        val search by searchText.collectAsState()
+        val type by databaseType.collectAsState()
+        val byGenre by searchByGenre.collectAsState()
+        val byDesc by searchByDesc.collectAsState()
+        var reverse by remember { mutableStateOf(false) }
+        val rows = remember(entries, reverse) { entries.sortedBy { it.name.lowercase() }.let { if (reverse) it.reversed() else it } }
+        val listState = rememberLazyListState()
+        LaunchedEffect(type, search, byGenre, byDesc, reverse) { listState.scrollToItem(0) }
+        Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(if (favoritesOnly) "Favorites" else "Browse series", style = MaterialTheme.typography.headlineSmall)
+                Button(onClick = { DatabaseUpdater.updateCatalog() }, enabled = !DatabaseUpdater.busy) { Text("Update catalog") }
+                if (DatabaseUpdater.busy) TextButton(onClick = { DatabaseUpdater.cancel() }) { Text("Cancel") }
+            }
+            if (DatabaseUpdater.status.isNotBlank()) Text(DatabaseUpdater.status, style = MaterialTheme.typography.bodySmall)
+            if (!favoritesOnly) OutlinedTextField(search, { mSearchText.value = it }, modifier = Modifier.fillMaxWidth(),
+                label = { Text("Search series name or URL") }, singleLine = true,
+                trailingIcon = { if (search.isNotBlank()) TextButton(onClick = { mSearchText.value = "" }) { Text("Clear") } })
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                DatabaseType.entries.forEach { category ->
+                    FilterChip(selected = type == category, onClick = {
+                        mDatabaseType.value = category
+                        if (!favoritesOnly) Defaults.DB_LAST_TYPE_USED.update(category.id)
+                    }, label = { Text(category.title) })
                 }
-            ) { padding ->
-                Column(
-                    modifier = Modifier.padding(
-                        bottom = padding.calculateBottomPadding()
-                    ).fillMaxSize()
-                ) {
-                    val series by series.collectAsState()
-                    val type by databaseType.collectAsState()
-
-                    FullBox {
-
-                        LazyTable(
-                            listOf(
-                                ColumnItem(
-                                    "Series Name",
-                                    3f,
-                                    weightSaveKey = Save.DB_N_WEIGHT,
-                                    defaultSort = true to false,
-                                    sortSelector = { it.name }
-                                ) { _, series ->
-                                    key(forceUpdateName) {
-                                        val favorited = BoxHelper.isSeriesFavorited(series)
-                                        Box(
-                                            Modifier.fillMaxSize()
-                                        ) {
-                                            if (favorited) {
-                                                DefaultIcon(
-                                                    EvaIcons.Fill.Star,
-                                                    iconColor = Color.Yellow,
-                                                    modifier = Modifier
-                                                        .padding(4.dp)
-                                                        .align(Alignment.TopStart)
-                                                )
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (!favoritesOnly) FilterChip(selected = byGenre, onClick = { mSearchByGenre.value = !byGenre; Defaults.DB_SEARCH_GENRE.update(!byGenre) }, label = { Text("Include genres") })
+                if (!favoritesOnly) FilterChip(selected = byDesc, onClick = { mSearchByDesc.value = !byDesc; Defaults.DB_SEARCH_DESC.update(!byDesc) }, label = { Text("Include descriptions") })
+                TextButton(onClick = { reverse = !reverse }) { Text(if (reverse) "Sort: Z–A" else "Sort: A–Z") }
+                Text("${rows.size} series", modifier = Modifier.padding(vertical = 12.dp), style = MaterialTheme.typography.bodySmall)
+            }
+            if (rows.isEmpty()) Text(if (favoritesOnly) "No matching favorites. Use the star beside a series in Browse." else "No matches in your saved catalog. Update the catalog or try a series URL in Downloads.")
+            Box(Modifier.weight(1f)) {
+                LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(end = 12.dp)) {
+                    items(rows, key = { "${it.identity}:${it.slug}:${it.id}" }) { item ->
+                        val favorite = remember(item.slug, revision) { BoxHelper.isSeriesFavorited(item) }
+                        val show = followShow(item)
+                        val followed = nobility.downloader.core.scraper.FollowSeries.isFollowing(show)
+                        var expanded by remember(item.slug) { mutableStateOf(false) }
+                        fun favoriteAction() {
+                            if (BoxHelper.isSeriesFavorited(item)) BoxHelper.removeSeriesFavorite(item.slug)
+                            else BoxMaker.makeFavorite(item.slug)
+                        }
+                        ContextMenuArea(items = { buildList {
+                            add(ContextMenuItem("Download") { Core.openSeriesDetails(item.slug, windowScope) })
+                            add(ContextMenuItem(if (favorite) "Remove from favorites" else "Add to favorites") { favoriteAction() })
+                            if (item.seriesIdentity != SeriesIdentity.MOVIE) add(ContextMenuItem(if (followed) "Unfollow series" else "Follow series") { nobility.downloader.core.scraper.FollowSeries.toggle(show) })
+                            add(ContextMenuItem("Update details and thumbnail") { DatabaseUpdater.refreshSeries(item) })
+                            add(ContextMenuItem("Copy name") { Tools.clipboardString = item.name })
+                            if (item.seriesIdentity == SeriesIdentity.MOVIE) add(ContextMenuItem("Edit movie") { MovieEditorWindow.open(item) })
+                        } }) {
+                            Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    DefaultImage(item.imagePath, item.imageLink, series = item, contentScale = ContentScale.Fit,
+                                        modifier = Modifier.size(70.dp, 100.dp))
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(item.name, style = MaterialTheme.typography.titleMedium)
+                                        Text("WCO • ${if (item.episodesSize > 0) "${item.episodesSize} episodes" else "Open to load episodes"}", style = MaterialTheme.typography.bodySmall)
+                                        val unread = nobility.downloader.core.scraper.FollowSeries.items.firstOrNull { nobility.downloader.core.scraper.FollowSeries.key(it.show) == nobility.downloader.core.scraper.FollowSeries.key(show) }?.unread?.size ?: 0
+                                        if (unread > 0) Text("$unread new episode(s)", color = MaterialTheme.colorScheme.primary)
+                                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Tooltip(if (favorite) "Remove from favorites" else "Add to favorites") {
+                                                IconButton(onClick = { favoriteAction() }) { Icon(if (favorite) EvaIcons.Fill.Star else EvaIcons.Outline.Star, "Favorite", tint = if (favorite) MaterialTheme.colorScheme.primary else LocalContentColor.current) }
                                             }
-                                            Text(
-                                                text = series.name,
-                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                fontSize = MaterialTheme.typography.bodyMedium.fontSize,
-                                                modifier = Modifier
-                                                    .padding(4.dp)
-                                                    .align(Alignment.CenterStart)
-                                            )
+                                            if (item.seriesIdentity != SeriesIdentity.MOVIE) {
+                                                Tooltip(if (followed) "Following: checks for new episodes at startup" else "Follow to check for new episodes at startup") {
+                                                    IconToggleButton(checked = followed, onCheckedChange = { nobility.downloader.core.scraper.FollowSeries.toggle(show) }) { Icon(EvaIcons.Fill.Bookmark, if (followed) "Unfollow" else "Follow", tint = if (followed) MaterialTheme.colorScheme.primary else LocalContentColor.current) }
+                                                }
+                                                Button(onClick = { Core.changePage(nobility.downloader.Page.WATCH); Core.watchView.openShow(show) }) { Text("Watch") }
+                                            }
+                                            OutlinedButton(onClick = { Core.openSeriesDetails(item.slug, windowScope) }) { Text("Download") }
+                                            TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "Less" else "Details") }
                                         }
                                     }
-                                },
-                                ColumnItem(
-                                    "Description",
-                                    2.5f,
-                                    weightSaveKey = Save.DB_D_WEIGHT
-                                ) { _, series ->
-                                    Text(
-                                        text = series.description.ifEmpty { "No Description" },
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontSize = MaterialTheme.typography.bodyMedium.fontSize,
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier
-                                            .fillMaxSize(0.85f)
-                                            .background(
-                                                Color.Transparent
-                                            ).border(
-                                                1.dp,
-                                                Brush.verticalGradient(
-                                                    colors = listOf(
-                                                        Color.Transparent,
-                                                        Color.Transparent,
-                                                        Color.Transparent,
-                                                        Color.Transparent,
-                                                        Color.Transparent,
-                                                        Color.Transparent,
-                                                        Color.Transparent,
-                                                        Color.Transparent,
-                                                        Color.Transparent,
-                                                        Color.Transparent,
-                                                        Color.Transparent,
-                                                        Color.Transparent,
-                                                        Color.Transparent,
-                                                        Color.Transparent,
-                                                        MaterialTheme.colorScheme.primary
-                                                    )
-                                                ),
-                                                RoundedCornerShape(2.dp)
-                                            ).verticalScroll(rememberScrollState())
-                                    )
-                                },
-                                ColumnItem(
-                                    "Genres",
-                                    2f,
-                                    weightSaveKey = Save.DB_G_WEIGHT
-                                ) { _, series ->
-                                    LinkifyGenres(
-                                        series.filteredGenres,
-                                        textColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        linkColor = MaterialTheme.colorScheme.primary
-                                    )
-                                },
-                                ColumnItem(
-                                    if (type != DatabaseType.MOVIE) "Episodes" else "",
-                                    1.1f,
-                                    weightSaveKey = Save.DB_E_WEIGHT,
-                                    sortSelector = { it.episodesSize }
-                                ) { _, series ->
-                                    if (type != DatabaseType.MOVIE) {
-                                        Text(
-                                            text = if (series.seriesIdentity != SeriesIdentity.MOVIE)
-                                                series.episodesSize.toString() else "Movie",
-                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                            fontSize = MaterialTheme.typography.bodyLarge.fontSize,
-                                            textAlign = TextAlign.Center
-                                        )
-                                    }
-                                },
-                                ColumnItem(
-                                    "Image",
-                                    2.5f,
-                                    weightSaveKey = Save.DB_I_WEIGHT
-                                ) { _, series ->
-                                    DefaultImage(
-                                        series.imagePath,
-                                        series.imageLink,
-                                        fastScrolling = fastScrolling,
-                                        contentScale = ContentScale.FillBounds,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
                                 }
-                            ),
-                            series,
-                            lazyListState = seasonsListState,
-                            key = { it.slug + it.id },
-                            rowHeight = 150.dp,
-                            sortSaveKey = Save.DB_SORT
-                        ) { _, series ->
-
-                            val favorited = BoxHelper.isSeriesFavorited(series)
-
-                            listOf(
-                                DropdownOption(
-                                    "Series Details",
-                                    EvaIcons.Fill.Info
-                                ) {
-                                    Core.openSeriesDetails(
-                                        series.slug,
-                                        windowScope
-                                    )
-                                },
-                                DropdownOption(
-                                    if (favorited)
-                                        "Remove From Favorite" else "Add To Favorite",
-                                    if (favorited)
-                                        EvaIcons.Fill.Star else EvaIcons.Outline.Star,
-                                    contentColor = if (favorited)
-                                        Color.Yellow else LocalContentColor.current
-                                ) {
-                                    if (favorited) {
-                                        BoxHelper.removeSeriesFavorite(series.slug)
-                                    } else {
-                                        BoxMaker.makeFavorite(series.slug)
-                                    }
-                                    forceUpdateName++
-                                },
-                                DropdownOption(
-                                    "Copy Name",
-                                    EvaIcons.Fill.Copy
-                                ) {
-                                    Tools.clipboardString = series.name
-                                    windowScope.showToast("Copied Name")
-                                },
-                                DropdownOption(
-                                    "Copy Description",
-                                    EvaIcons.Fill.Copy,
-                                    visible = series.description.isNotEmpty()
-                                ) {
-                                    Tools.clipboardString = series.description
-                                    windowScope.showToast("Copied Description")
-                                },
-                                DropdownOption(
-                                    "Edit Movie",
-                                    EvaIcons.Fill.Edit,
-                                    visible = series.seriesIdentity == SeriesIdentity.MOVIE
-                                ) {
-                                    MovieEditorWindow.open(series)
+                                if (expanded) {
+                                    Text(item.description.ifBlank { "No description cached. Update details to fetch it." }, modifier = Modifier.padding(top = 8.dp))
+                                    LinkifyGenres(item.filteredGenres, linkColor = MaterialTheme.colorScheme.primary)
+                                    TextButton(onClick = { DatabaseUpdater.refreshSeries(item) }, enabled = !DatabaseUpdater.busy) { Text("Update details and thumbnail") }
                                 }
-                            )
-                        }
-                        LaunchedEffect(series.size) {
-                            resultText = "Showing ${series.size} series results"
-                        }
-                        DisposableEffect(Unit) {
-                            onDispose {
-                                Defaults.DB_LAST_SCROLL_POS.update(
-                                    seasonsListState.firstVisibleItemIndex
-                                )
                             }
                         }
-                        LaunchedEffect(Unit) {
-                            seasonsListState.scrollToItem(
-                                Defaults.DB_LAST_SCROLL_POS.int()
-                            )
-                        }
+                        HorizontalDivider()
                     }
                 }
+                androidx.compose.foundation.VerticalScrollbar(adapter = rememberScrollbarAdapter(listState), modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight())
             }
         }
     }
@@ -564,7 +276,7 @@ class DatabaseWindow {
                             ?.let { result ->
                                 if (result.tag == GENRE_TAG) {
                                     val genre = BoxHelper.genreForName(result.item.trim())
-                                    Core.databaseSearchText.value = genre.name
+                                    mSearchText.value = genre.name
                                 }
                             }
                     }
@@ -605,11 +317,7 @@ class DatabaseWindow {
         val end: Int
     )
 
-    private val randomSearchHint
-        get() =
-            BoxHelper.allSeries.map { it.name }.plus(
-                BoxHelper.shared.wcoGenreBox.all.map { it.name }
-            ).random().lines().firstOrNull() ?: ""
+    private val randomSearchHint = "Search by title, series URL, genre or description"
 
     @OptIn(ExperimentalFoundationApi::class)
     private fun openGenresWindow() {
@@ -663,10 +371,10 @@ class DatabaseWindow {
                                                 .secondaryContainer.hover()
                                         ),
                                         onSecondaryClick = {
-                                            Core.databaseSearchText.value = genre.name
+                                            mSearchText.value = genre.name
                                         }
                                     ) {
-                                        Core.databaseSearchText.value = genre.name
+                                        mSearchText.value = genre.name
                                     }
                                     .background(
                                         color = MaterialTheme.colorScheme.secondaryContainer,
@@ -698,6 +406,18 @@ class DatabaseWindow {
 
     companion object {
         private const val GENRE_TAG = "GEN"
+        fun followShow(series: Series) = nobility.downloader.core.scraper.WatchCatalog.Show(
+            series.name, series.slug.slugToLink(), nobility.downloader.core.scraper.WatchCatalog.Provider.WCO)
+
+        @JvmStatic fun matches(series: Series, search: String, byGenre: Boolean, byDesc: Boolean,
+            favoriteOnly: Boolean, favoriteSlugs: Set<String>): Boolean {
+            if (favoriteOnly && series.slug !in favoriteSlugs) return false
+            val query = search.trim()
+            return query.isEmpty() || series.name.contains(query, true) ||
+                series.slug == query.linkToSlug() ||
+                (byDesc && series.description.contains(query, true)) ||
+                (byGenre && series.filteredGenres.any { it.equals(query, true) })
+        }
     }
 
 }

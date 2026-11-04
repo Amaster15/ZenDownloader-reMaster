@@ -118,6 +118,7 @@ object BoxMaker {
                     favorite.updateEpisodes(episodeSlugs)
                 }
                 BoxHelper.shared.favoriteBox.put(favorite)
+                LibraryChanges.refresh()
             }
     }
 
