@@ -74,7 +74,7 @@ class FollowSeriesView : ViewPage {
                                     contentScale = ContentScale.Fit, modifier = Modifier.size(70.dp, 100.dp))
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Text(follow.show.title, style = MaterialTheme.typography.titleMedium)
-                                    Text("${follow.show.provider} • " + if (!follow.initialized) "Waiting for first check…" else if (follow.unread.isEmpty()) "No new episodes" else "${follow.unread.size} new episode(s)",
+                                    Text("${follow.show.provider.label} • " + if (!follow.initialized) "Waiting for first check…" else if (follow.unread.isEmpty()) "No new episodes" else "${follow.unread.size} new episode(s)",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = if (follow.unread.isNotEmpty()) MaterialTheme.colorScheme.primary else LocalContentColor.current)
                                     if (follow.error.isNotBlank()) Text(follow.error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)

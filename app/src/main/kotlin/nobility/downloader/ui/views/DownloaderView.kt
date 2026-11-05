@@ -69,9 +69,25 @@ class DownloaderView : ViewPage {
 
     override val page = Page.DOWNLOADER
 
-    @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
+    private var animeFreak by mutableStateOf(false)
+    private val animeFreakDownloads = AnimeFreakDownloads()
+
     @Composable
     override fun Ui(windowScope: AppWindowScope) {
+        Column(Modifier.fillMaxSize()) {
+            Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                androidx.compose.material3.FilterChip(!animeFreak, { animeFreak = false }, label = { Text("WCO") })
+                androidx.compose.material3.FilterChip(animeFreak, { animeFreak = true }, label = { Text("AnimeFreak") })
+            }
+            Box(Modifier.weight(1f)) {
+                if (animeFreak) animeFreakDownloads.Ui() else WcoUi(windowScope)
+            }
+        }
+    }
+
+    @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
+    @Composable
+    private fun WcoUi(windowScope: AppWindowScope) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             topBar = {

@@ -15,8 +15,8 @@ repo = Path(__file__).resolve().parents[1]
 out = repo / 'app/build/releases' / a.version
 out.mkdir(parents=True, exist_ok=True)
 app = repo / f'app/build/custom-jars/ZenDownloader-{a.version}.jar'
-launchers = list((repo / 'bootstrap/build/libs').glob('*.jar'))
-assert len(launchers) == 1, f'Expected one launcher: {launchers}'
+launcher = repo / 'bootstrap/build/libs/launcher.jar'
+assert launcher.is_file(), 'Build :bootstrap:packageBootstrapJar before packaging'
 readme = '''ZenDownloader-reMaster {version}
 
 Extract the entire ZIP before running. Keep app, runtime, and launcher.jar together.
@@ -43,7 +43,7 @@ for os, runtime in [('windows', a.windows_runtime), ('linux', a.linux_runtime)]:
         shutil.rmtree(stage)
     (stage / 'app').mkdir(parents=True)
     shutil.copy2(app, stage / 'app' / app.name)
-    shutil.copy2(launchers[0], stage / 'launcher.jar')
+    shutil.copy2(launcher, stage / 'launcher.jar')
     shutil.copytree(runtime, stage / 'runtime', symlinks=False)
     shutil.copy2(repo / 'LICENSE', stage / 'LICENSE')
     (stage / 'README.txt').write_text(readme)

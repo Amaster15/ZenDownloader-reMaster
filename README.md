@@ -38,6 +38,14 @@ Open **Settings → App updates → Check for updates** to check releases from t
 
 **Upgrading from 1.3.3 or earlier:** download and extract the full 1.4.0 ZIP once to get the new launcher. Keep the new `launcher.jar`, `app`, and `runtime` together, and launch using `run.bat` or `run.sh`. Updating only the JAR does not upgrade the old launcher.
 
+## AnimeFreak search, watching, and downloads
+
+Use **Watch → AnimeFreak** to search by title or paste a series URL, then choose **Play** or **Download** beside an episode. Search remembers display titles and URL names for the same series, so previously found English and romanized Japanese names remain searchable. Alternate URL names appear below results. This is a learned title index, not automatic translation. Watching uses the source quality and your selected player. Downloads from Watch stop if you leave the Watch tab; use the batch panel for longer queues.
+
+Under **Downloads → Add downloads → AnimeFreak**, paste a series or episode URL from `animefreak.it.com`, load the episode list, select episodes, then choose **Download selected**. This currently supports the EchoVideo player. Chrome/Chromium loads the provider pages; FFmpeg downloads the HLS stream into an MP4 in your configured download folder.
+
+Files use the series title and season/episode numbering. Existing files are skipped. Cancel stops the current download and removes its partial file; completed files remain. This provider has its own batch status and episode results in the AnimeFreak panel, separate from the WCO queue and automatic HiAnime fallback. Browser verification or provider changes may interrupt loading; errors are displayed in the panel.
+
 ## Watching episodes
 
 Use the **Watch** tab beside Browse to play episodes. In Watch, choose WCO or HiAnime, search for a series (or paste its series URL), then choose an episode and press **Play**. Playback uses the FFplay, mpv, or VLC player selected in Watch or Settings, without opening the site's advertising pages. The **Get VLC** button opens the official VideoLAN download page; VLC must be installed separately. HiAnime currently supports the Ayame player and lists available dub/sub episodes separately.

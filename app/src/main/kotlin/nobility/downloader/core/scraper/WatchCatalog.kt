@@ -19,7 +19,7 @@ import java.security.MessageDigest
 
 /** Cache catalog metadata only. Signed media URLs are always resolved at playback time. */
 object WatchCatalog {
-    enum class Provider { WCO, HIANIME }
+    enum class Provider(val label: String) { WCO("WCO"), HIANIME("HiAnime"), ANIMEFREAK("AnimeFreak") }
     data class Show(val title: String, val url: String, val provider: Provider)
     data class Entry(val title: String, val url: String, val language: String = "")
     data class Listing(val fetchedAt: Long, val entries: List<Entry>)
@@ -28,6 +28,7 @@ object WatchCatalog {
 
     private suspend fun read(url: String, provider: Provider): String = withContext(Dispatchers.IO) {
         currentCoroutineContext().ensureActive()
+        if (provider == Provider.ANIMEFREAK) return@withContext AnimeFreak.catalogHtml(url)
         if (provider == Provider.WCO) {
             val result = Functions.readUrlLines(url, "Watch catalog")
             result.data?.toString() ?: error(result.message ?: "Unable to read WCO catalog")
@@ -39,6 +40,11 @@ object WatchCatalog {
     suspend fun search(query: String, provider: Provider): List<Show> = withContext(Dispatchers.IO) {
         val q = query.trim()
         require(q.isNotEmpty()) { "Enter a series name or series URL" }
+        if (provider == Provider.ANIMEFREAK && q.startsWith("https://")) {
+            val url = AnimeFreak.seriesUrl(q)
+            val series = AnimeFreak.load(url)
+            return@withContext listOf(Show(series.title, url, provider)).also { AnimeTitleIndex.remember(it) }
+        }
         if (q.startsWith("https://")) {
             val uri = URI(q)
             val allowed = if (provider == Provider.HIANIME) uri.host == "hianime.ms" && uri.path.startsWith("/details/")
@@ -53,10 +59,15 @@ object WatchCatalog {
             if (local.isNotEmpty()) return@withContext local.sortedBy { it.title }.take(150)
         }
         val encoded = URLEncoder.encode(q, Charsets.UTF_8)
-        val url = if (provider == Provider.HIANIME) "https://hianime.ms/search?q=$encoded"
+        val url = if (provider == Provider.ANIMEFREAK) "https://animefreak.it.com/search?keyword=$encoded"
+            else if (provider == Provider.HIANIME) "https://hianime.ms/search?q=$encoded"
             else "".slugToLink().trimEnd('/') + "/search"
         val html = if (provider == Provider.WCO) searchWco(q, url) else read(url, provider)
-        parseSearch(html, url, provider)
+        val results = parseSearch(html, url, provider)
+        if (provider == Provider.ANIMEFREAK) {
+            AnimeTitleIndex.remember(results)
+            (results + AnimeTitleIndex.search(q)).distinctBy { it.url }.take(150)
+        } else results
     }
 
     private suspend fun searchWco(query: String, url: String): String {
@@ -83,14 +94,16 @@ object WatchCatalog {
 
     @JvmStatic fun parseSearch(html: String, base: String, provider: Provider): List<Show> {
         val doc = Jsoup.parse(html, base)
+        if (provider == Provider.ANIMEFREAK) doc.select("#sidebar, .sidebar").remove()
         return doc.select("a[href]").mapNotNull { a ->
             val url = a.absUrl("href")
             val uri = runCatching { URI(url) }.getOrNull() ?: return@mapNotNull null
             val path = if (provider == Provider.HIANIME) "/details/" else "/anime/"
-            val title = a.text().trim()
+            val title = a.text().trim().ifBlank { a.selectFirst("img")?.attr("alt").orEmpty() }
+            if (provider == Provider.ANIMEFREAK && !uri.path.matches(Regex("/anime/[a-zA-Z0-9-]+/?"))) return@mapNotNull null
             if (!sameHost(uri.host, URI(base).host) || !uri.path.startsWith(path) || title.isBlank()) null
             else Show(title, url, provider)
-        }.distinctBy { it.url }.take(150)
+        }.groupBy { it.url }.values.map { matches -> matches.minBy { it.title.length } }.take(150)
     }
 
     private fun cacheFile(show: Show): File {
@@ -145,6 +158,11 @@ object WatchCatalog {
 
     @JvmStatic fun parseEpisodes(html: String, base: String, provider: Provider): List<Entry> {
         val doc = Jsoup.parse(html, base)
+        if (provider == Provider.ANIMEFREAK) {
+            val series = AnimeFreak.parseSeries(html, base)
+            val language = if (series.title.contains("dub", true) || base.contains("-dub")) "dub" else "sub"
+            return series.episodes.map { Entry("Episode ${it.number}", it.url, language) }
+        }
         if (provider == Provider.HIANIME) return doc.select("a[data-episode][href]").flatMap { a ->
             val number = a.attr("data-episode").toIntOrNull() ?: return@flatMap emptyList()
             val url = a.absUrl("href")

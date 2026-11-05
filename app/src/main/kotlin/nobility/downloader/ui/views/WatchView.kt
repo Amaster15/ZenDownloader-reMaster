@@ -7,11 +7,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.*
 import nobility.downloader.Page
 import nobility.downloader.core.Core
 import nobility.downloader.core.BoxHelper.Companion.update
+import nobility.downloader.core.BoxHelper.Companion.string
 import nobility.downloader.core.settings.Defaults
 import nobility.downloader.core.settings.VideoPlayer
 import nobility.downloader.ui.components.dialog.DialogHelper
@@ -87,14 +89,21 @@ class WatchView : ViewPage {
         Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Watch", style = MaterialTheme.typography.headlineSmall)
             Text("Play videos in your configured player without opening the provider's advertising pages.")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 WatchCatalog.Provider.entries.forEach { p ->
                     FilterChip(selected = provider == p, enabled = !busy, onClick = {
                         provider = p; results = emptyList(); selected = null; listing = null
-                    }, label = { Text(if (p == WatchCatalog.Provider.WCO) "WCO" else "HiAnime") })
+                    }, label = { Text(p.label) })
                 }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(query, { query = it }, label = { Text("Series title or series URL") },
-                    singleLine = true, enabled = !busy, modifier = Modifier.weight(1f))
+                    singleLine = true, enabled = !busy, modifier = Modifier.weight(1f).onPreviewKeyEvent { event ->
+                        if (event.key == Key.Enter || event.key == Key.NumPadEnter) {
+                            if (event.type == KeyEventType.KeyUp && !busy && query.isNotBlank()) search()
+                            true
+                        } else false
+                    })
                 Button(onClick = { search() }, enabled = !busy && query.isNotBlank()) { Text("Search") }
                 TextButton(onClick = { Core.openSettings() }) { Text("Player settings") }
             }
@@ -122,7 +131,11 @@ class WatchView : ViewPage {
                 LazyColumn(Modifier.weight(0.38f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     items(results, key = { it.url }) { show ->
                         OutlinedButton(onClick = { load(show) }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
-                            Text((if (selected?.url == show.url) "▶ " else "") + show.title)
+                            Column {
+                                Text((if (selected?.url == show.url) "▶ " else "") + show.title)
+                                val alternate = nobility.downloader.core.scraper.AnimeTitleIndex.alternateTitle(show)
+                                if (alternate.isNotBlank()) Text("Site name: $alternate", style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                     }
                 }
@@ -144,7 +157,8 @@ class WatchView : ViewPage {
                             listOf("All", "Dub", "Sub").forEach { lang ->
                                 FilterChip(language == lang, { language = lang }, label = { Text(lang) })
                             }
-                            Quality.entries.forEach { q ->
+                            if (show.provider == WatchCatalog.Provider.ANIMEFREAK) Text("Source quality")
+                            else Quality.entries.forEach { q ->
                                 FilterChip(quality == q, { quality = q }, label = { Text(q.tag) })
                             }
                         }
@@ -166,6 +180,20 @@ class WatchView : ViewPage {
                                             status = "${VideoPlayer.playerForSetting()} started for ${entry.title}."
                                         }
                                     }) { Text("Play") }
+                                    if (show.provider == WatchCatalog.Provider.ANIMEFREAK) TextButton(enabled = !busy, onClick = {
+                                        runTask {
+                                            val episode = nobility.downloader.core.scraper.AnimeFreak.Episode(entry.url.trimEnd('/').substringAfterLast('/').toInt(), entry.url)
+                                            val series = nobility.downloader.core.scraper.AnimeFreak.Series(show.title, listOf(episode))
+                                            val downloadRequest = sequence
+                                            val output = java.io.File(Defaults.SAVE_FOLDER.string(), nobility.downloader.core.scraper.AnimeFreak.filename(series, episode))
+                                            status = "Resolving AnimeFreak download…"
+                                            val stream = nobility.downloader.core.scraper.AnimeFreak.resolve(episode)
+                                            nobility.downloader.core.scraper.AnimeFreak.download(stream, output) { message ->
+                                                Core.taskScope.launch(Dispatchers.Main) { if (sequence == downloadRequest) status = message }
+                                            }
+                                            status = "Saved ${output.name}"
+                                        }
+                                    }) { Text("Download") }
                                 }
                             }
                         }

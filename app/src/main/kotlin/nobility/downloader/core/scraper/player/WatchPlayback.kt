@@ -19,7 +19,14 @@ object WatchPlayback {
         var bridge: java.io.Closeable? = null
         try {
             val url: String
-            if (show.provider == WatchCatalog.Provider.HIANIME) {
+            if (show.provider == WatchCatalog.Provider.ANIMEFREAK) {
+                status("Resolving the AnimeFreak player…")
+                val episode = nobility.downloader.core.scraper.AnimeFreak.Episode(entry.url.trimEnd('/').substringAfterLast('/').toInt(), entry.url)
+                val stream = nobility.downloader.core.scraper.AnimeFreak.resolve(episode)
+                val local = nobility.downloader.core.scraper.AnimeFreak.playback(stream)
+                bridge = local
+                url = local.url
+            } else if (show.provider == WatchCatalog.Provider.HIANIME) {
                 status("Finding the selected HiAnime ${entry.language} player…")
                 val provider = HiAnimeFallback()
                 val match = provider.watchMatch(entry.url, entry.language)
