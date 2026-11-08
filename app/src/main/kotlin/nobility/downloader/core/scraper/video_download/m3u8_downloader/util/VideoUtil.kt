@@ -206,28 +206,12 @@ object VideoUtil {
         }
     }
 
-    private fun execCommand(commands: List<String>): Boolean {
-        //FrogLog.info("execCommand ${commands.joinToString(" ")}")
-        try {
-            val videoProcess = ProcessBuilder(commands)
-                .redirectErrorStream(true)
-                .start()
-            var s: String?
-            val stdInput = BufferedReader(InputStreamReader(videoProcess.inputStream))
-            while ((stdInput.readLine().also { s = it }) != null) {
-                log.warn(s)
-            }
-            val code = videoProcess.waitFor()
-            //FrogLog.info("execCommand code=$code")
-            return code == 0
-        } catch (e: Exception) {
-            FrogLog.error(
-                "Failed to execute ffmpeg command.",
-                e
-            )
-            return false
-        }
-    }
+    private fun execCommand(commands: List<String>): Boolean = runCatching {
+        val process = ProcessBuilder(commands).redirectErrorStream(true)
+            .redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
+        try { process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS) && process.exitValue() == 0 }
+        finally { if (process.isAlive) process.destroyForcibly() }
+    }.getOrDefault(false)
 
     private fun findDatabaseFfplay(): String {
         val database = File(AppInfo.databasePath)
@@ -240,7 +224,7 @@ object VideoUtil {
         return ""
     }
 
-    private fun loadFfplayPath(): String {
+    fun loadFfplayPath(): String {
         // Linux distro builds integrate with the host's PulseAudio/PipeWire/ALSA stack.
         // The portable download may only provide an unusable OSS (/dev/dsp) backend.
         if (System.getProperty("os.name").startsWith("Linux", ignoreCase = true) &&
@@ -257,7 +241,7 @@ object VideoUtil {
     }
 
     object FfmpegPathHolder {
-        val ffmpegPath = loadFfmpegPath()
-        val ffplayPath = loadFfplayPath()
+        val ffmpegPath get() = loadFfmpegPath()
+        val ffplayPath get() = loadFfplayPath()
     }
 }

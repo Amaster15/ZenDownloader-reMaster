@@ -40,8 +40,8 @@ object AnimeFreak {
         return Series(title, episodes)
     }
 
-    private suspend fun <T> browser(block: suspend (DriverBase) -> T): T = withContext(Dispatchers.IO) {
-        val base = object : DriverBase() {}
+    private suspend fun <T> browser(headless: Boolean? = null, block: suspend (DriverBase) -> T): T = withContext(Dispatchers.IO) {
+        val base = object : DriverBase(headless = headless) {}
         try {
             base.waitForSetup()
             base.driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(45))
@@ -52,17 +52,19 @@ object AnimeFreak {
         } finally { base.killDriver() }
     }
 
-    suspend fun catalogHtml(url: String): String = browser { base ->
+    suspend fun catalogHtml(url: String, showBrowser: Boolean = false): String = browser(headless = if (showBrowser) false else null) { base ->
         require(URI(url).host == "animefreak.it.com")
+        base.driver.manage().timeouts().implicitlyWait(Duration.ZERO)
+        base.driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(20))
         if (URI(url).path == "/search") {
             base.undriver.go("https://animefreak.it.com/home", false)
-            withTimeout(90_000) {
+            withTimeout(if (showBrowser) 90_000 else 30_000) {
                 while (base.driver.findElements(By.cssSelector("a[href*='/anime/']")).isEmpty()) delay(1000)
             }
         }
         base.undriver.go(url, false)
-        withTimeout(90_000) {
-            val selector = if (URI(url).path.startsWith("/anime/")) "a[href*='/episode/']" else "input[name='keyword']"
+        withTimeout(if (showBrowser) 90_000 else 30_000) {
+            val selector = if (URI(url).path.startsWith("/anime/")) "a[href*='/episode/']" else "a[href*='/anime/'], input[name='keyword'], input[type='search']"
             while (base.driver.findElements(By.cssSelector(selector)).isEmpty()) {
                 currentCoroutineContext().ensureActive()
                 delay(1000)

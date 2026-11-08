@@ -106,6 +106,7 @@ class SettingsView : ViewPage {
         Scaffold(
             topBar = {
                 Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                    SetupHealth.Button()
                     Text("App updates", style = MaterialTheme.typography.titleMedium)
                     Text("ZenDownloader reMaster ${AppInfo.VERSION} • Amaster15/ZenDownloader-reMaster", style = MaterialTheme.typography.bodySmall)
                     androidx.compose.material3.TextButton(onClick = { Core.openUpdate() }) {

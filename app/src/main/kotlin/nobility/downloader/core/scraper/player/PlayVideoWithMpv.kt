@@ -30,7 +30,9 @@ object PlayVideoWithMpv {
         mpvPath: String = Defaults.MPV_PATH.string().ifEmpty { "mpv" },
         referer: String = "",
         onStarted: (Process) -> Unit = {},
-        subtitle: java.io.File? = null
+        subtitle: java.io.File? = null,
+        resumeSeconds: Double = 0.0,
+        progress: ((Double, Double) -> Unit)? = null
     ): Resource<Boolean> {
 
         if (!isMpvInstalled(mpvPath)) {
@@ -53,14 +55,20 @@ object PlayVideoWithMpv {
             "--quiet",
             url
         )
+        if (resumeSeconds > 0) command.add(1, "--start=$resumeSeconds")
+        val log = if (progress != null) java.io.File.createTempFile("zen-mpv-", ".log") else null
+        if (progress != null) {
+            command.remove("--quiet")
+            command.addAll(1, listOf("--terminal=yes", "--term-status-msg=ZEN_PROGRESS:\${=time-pos}:\${=duration}"))
+        }
         if (referer.isNotEmpty()) command.add(1, "--referrer=$referer")
         if (subtitle != null) command.add(1, "--sub-file=${subtitle.absolutePath}")
         return try {
 
-            val process = ProcessBuilder(command)
-                .inheritIO()
-                .redirectErrorStream(true)
-                .start()
+            val builder = ProcessBuilder(command).redirectErrorStream(true)
+            if (log != null) builder.redirectOutput(log) else builder.inheritIO()
+            val process = builder.start()
+            if (log != null && progress != null) PlaybackTelemetry.log(process, log, true, progress)
 
             if (process.waitFor(750, java.util.concurrent.TimeUnit.MILLISECONDS)) {
                 return Resource.Error("Player exited before playback started (exit ${process.exitValue()}). Check player settings and try again.")

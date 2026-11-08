@@ -15,7 +15,9 @@ object PlayVideoWithFfplay {
         ffplayPath: String = VideoUtil.FfmpegPathHolder.ffplayPath,
         referer: String = "",
         onStarted: (Process) -> Unit = {},
-        subtitle: java.io.File? = null
+        subtitle: java.io.File? = null,
+        resumeSeconds: Double = 0.0,
+        progress: ((Double, Double) -> Unit)? = null
     ): Resource<Boolean> {
 
         if (ffplayPath.isEmpty()) {
@@ -35,6 +37,8 @@ object PlayVideoWithFfplay {
             url
         )
 
+        if (resumeSeconds > 0) command.addAll(1, listOf("-ss", resumeSeconds.toString()))
+        if (progress != null) command.add(1, "-stats")
         if (subtitle != null) {
             val escaped = subtitle.absolutePath.replace("\\", "/").replace(":", "\\:").replace("'", "'\\\\''")
             command.addAll(1, listOf("-vf", "subtitles=filename='$escaped'"))
@@ -57,8 +61,9 @@ object PlayVideoWithFfplay {
                     val detail = runCatching { log.readText().takeLast(2000).trim() }.getOrDefault("")
                     nobility.downloader.utils.FrogLog.error("FFplay stopped (exit ${process.exitValue()}).", detail)
                 }
-                log.delete()
+                if (progress == null) log.delete()
             }
+            if (progress != null) PlaybackTelemetry.log(process, log, false, progress)
             Core.child.runningProcesses.add(process)
             onStarted(process)
 

@@ -20,13 +20,25 @@ object ProviderBrowse {
     private var results by mutableStateOf<List<WatchCatalog.Show>>(emptyList())
     private var status by mutableStateOf("")
     private var busy by mutableStateOf(false)
+    private var showBrowser by mutableStateOf(false)
+    private var searchJob: Job? = null
+    private var elapsed by mutableStateOf(0)
     private fun search() {
+        if (busy || query.isBlank()) return
         busy = true
         val source = provider; val text = query
-        Core.taskScope.launch(Dispatchers.Main) {
-            try { results = WatchCatalog.search(text, source); status = "${results.size} series found" }
-            catch (e: Exception) { status = e.message.orEmpty() }
-            finally { busy = false }
+        status = "Starting search"; elapsed = 0
+        searchJob = Core.taskScope.launch(Dispatchers.Main) {
+            val timer = launch { while (isActive) { delay(1000); elapsed++ } }
+            try {
+                results = withTimeout(if (showBrowser) 240_000 else 120_000) { WatchCatalog.search(text, source, showBrowser) }
+                status = "${results.size} series found"
+            } catch (e: TimeoutCancellationException) {
+                status = "Search timed out. The provider may be waiting for browser verification. Please retry."
+            } catch (e: CancellationException) {
+                status = "Search cancelled."; throw e
+            } catch (e: Exception) { status = e.message.orEmpty() }
+            finally { timer.cancel(); busy = false }
         }
     }
     @OptIn(ExperimentalLayoutApi::class)
@@ -48,8 +60,14 @@ object ProviderBrowse {
                             } else false
                         })
                     Button({ search() }, enabled = !busy && query.isNotBlank()) { Text("Search") }
+                    if (busy) OutlinedButton({ searchJob?.cancel(); status = "Cancelling search…" }) { Text("Cancel") }
                 }
-                Text(if (busy) "Searching ${provider.label}…" else status)
+                if (provider == WatchCatalog.Provider.ANIMEFREAK) Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Checkbox(showBrowser, { showBrowser = it }, enabled = !busy)
+                    Text("Show browser for site verification")
+                }
+                if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                Text(if (busy) "Searching ${provider.label} — ${elapsed}s. ${if (provider == WatchCatalog.Provider.ANIMEFREAK) if (showBrowser) "Complete any verification in the browser window." else "Waiting for the site / browser verification…" else ""}" else status)
                 LazyColumn {
                     items(results, key = { it.url }) { show ->
                         Text(show.title, style = MaterialTheme.typography.titleMedium)

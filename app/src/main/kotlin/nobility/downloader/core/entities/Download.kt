@@ -85,11 +85,16 @@ data class Download(
             setProgress("Paused")
             return
         }
+        if (!downloading && listOf("Error:", "Failed:", "Cancelled", "Stopped").any { downloadProgress.value.startsWith(it) }) return
         if (manualProgress && downloading) {
             return
         }
         val video = downloadFile()
         if (video != null && video.exists()) {
+            if (!downloading && fileSize > 5000 && video.length() >= fileSize) {
+                nobility.downloader.core.maintenance.VideoValidation.enqueue(this)
+                return
+            }
             if (manualProgress) {
                 setProgress("100%")
             } else {
@@ -109,8 +114,24 @@ data class Download(
         downloadSpeed.value = " (${Tools.bytesToString(bps)}ps)"
     }
 
+    @Transient
+    private var reportedProgress = false
+
     fun setProgress(value: String) {
         downloadProgress.value = value
+        if (downloading || reportedProgress) {
+            val percentage = Regex("(\\d+(?:[.,]\\d+)?)\\s*%").find(value)?.groupValues?.get(1)
+                ?.replace(',', '.')?.toDoubleOrNull()?.toInt()?.coerceIn(0, 100)
+            if (percentage != null) {
+                reportedProgress = true
+                nobility.downloader.core.Core.console.consoleState.updateDownloadProgress(
+                    "$slug|$downloadPath", "${name.take(240)}: $percentage%"
+                )
+            } else if (reportedProgress && listOf("Validating", "Finished", "Failed", "Cancelled", "Stopped").any { value.startsWith(it) }) {
+                nobility.downloader.core.Core.console.consoleState.updateDownloadProgress(
+                    "$slug|$downloadPath", "${name.take(220)}: $value")
+            }
+        }
     }
 
     fun downloadFile(): File? {
@@ -134,7 +155,7 @@ data class Download(
                 if (file.length() <= 0) {
                     false
                 } else {
-                    file.length() >= fileSize
+                    file.length() >= fileSize && nobility.downloader.core.maintenance.VideoValidation.result(file)?.valid == true
                 }
             } else false
         }

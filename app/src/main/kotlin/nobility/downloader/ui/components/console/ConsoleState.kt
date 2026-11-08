@@ -22,6 +22,7 @@ class ConsoleState(
 
     var lineCount = 0
         private set
+    private val progressRows = mutableMapOf<String, Int>()
     private val maxLines = 1000
     private val maxLineChars = 300
 
@@ -77,15 +78,34 @@ class ConsoleState(
             lines += line
             lineCount++
             if (lineCount > maxLines) {
-                lines.removeFirst()
+                removeFirstLine()
                 lineCount--
             }
+        }
+    }
+
+    private fun removeFirstLine() {
+        lines.removeFirst()
+        progressRows.replaceAll { _, index -> index - 1 }
+        progressRows.entries.removeAll { it.value < 0 }
+    }
+
+    @Synchronized
+    fun updateDownloadProgress(key: String, text: String) {
+        val line = text.take(maxLineChars)
+        val previous = progressRows[key]
+        if (previous != null) lines[previous] = line else {
+            lines += line
+            progressRows[key] = lines.lastIndex
+            if (lines.size > maxLines) removeFirstLine()
+            lineCount = lines.size
         }
     }
 
     @Synchronized
     fun clear() {
         lines.clear()
+        progressRows.clear()
         lineCount = 0
         sb.clear()
         unreadErrors = false

@@ -42,7 +42,7 @@ class VideoDownloadHandler(
     private var connectionRetries = 0
     private suspend fun finishFailed(reason: String, allowFallback: Boolean = true) {
         data.error(reason)
-        if (allowFallback && Defaults.HIANIME_FALLBACK.boolean() && Core.child.isRunning &&
+        if (allowFallback && (queue.allowFallback ?: Defaults.HIANIME_FALLBACK.boolean()) && Core.child.isRunning &&
             queue.m3U8Data == null && !queue.episode.isMovie) {
             Core.child.downloadThread.deferHiAnime(queue)
             data.message("Queued for HiAnime after all WCO downloads finish.")
@@ -53,7 +53,7 @@ class VideoDownloadHandler(
     suspend fun runHiAnime() {
         Core.child.downloadThread.incrementDownloadsInProgress()
         try {
-            if (Defaults.HIANIME_FALLBACK.boolean() && Core.child.isRunning) {
+            if ((queue.allowFallback ?: Defaults.HIANIME_FALLBACK.boolean()) && Core.child.isRunning) {
                 if (data.quickCheckVideoExists(queue.episode.slug)) return
                 data.resetDownload()
                 data.message("WCO pass finished. Searching HiAnime for the same episode and language.")
@@ -76,13 +76,8 @@ class VideoDownloadHandler(
                 record.queued = false
                 record.downloading = true
                 record.update()
-                var lastReported = -1
                 provider.download(stream, output, ffmpeg, { Core.child.isRunning }) { percent ->
                     record.setProgress("HiAnime $percent%")
-                    if (percent / 10 != lastReported) {
-                        lastReported = percent / 10
-                        data.message("HiAnime Ayame: $percent% (${stream.quality.tag})")
-                    }
                 }
                 record.fileSize = output.length()
                 record.downloading = false

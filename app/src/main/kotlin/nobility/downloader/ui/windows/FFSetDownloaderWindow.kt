@@ -217,7 +217,8 @@ class FFSetDownloaderWindow() {
     }
 
     suspend fun downloadLatestFFmpeg(
-        computerInfo: ComputerInfo = ComputerInfo.myComputer()
+        computerInfo: ComputerInfo = ComputerInfo.myComputer(),
+        force: Boolean = false
     ): Resource<Boolean> = withContext(Dispatchers.IO) {
         val link = fetchLinkForPC(computerInfo)
         if (link.isEmpty()) {
@@ -225,7 +226,7 @@ class FFSetDownloaderWindow() {
         }
         val downloadFile = File(AppInfo.databasePath, "ffmpeg.zip")
         val outputDirectoryFile = File(AppInfo.databasePath)
-        if (ffSetFound) {
+        if (ffSetFound && !force) {
             FrogLog.info("FFmpeg & FFplay already found.")
             return@withContext Resource.Success(true)
         }

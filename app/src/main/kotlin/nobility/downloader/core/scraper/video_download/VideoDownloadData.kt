@@ -99,26 +99,15 @@ class VideoDownloadData(
         val series = seriesForSlug(queue.episode.seriesSlug)
         val downloadFolderPath = Defaults.SAVE_FOLDER.string()
         val episode = queue.episode
-        val numbering = nobility.downloader.utils.EpisodeNaming.numbering(
-            episode.name, episode.slug, series?.name ?: episode.seriesName, episode.isMovie
-        )
         val episodeName = nobility.downloader.utils.EpisodeNaming.downloadFilename(
             episode.name, episode.slug, series?.name ?: episode.seriesName, episode.isMovie
         ).fixForFiles() + extraName
-        val seasonFolder = if (Defaults.SEPARATE_SEASONS.boolean())
-            numbering?.let { "Season ${it.season.toString().padStart(2, '0')}" } else null
-        var saveFolder = File(
-            downloadFolderPath + File.separator
-                    + (series?.name?.fixForFiles() ?: "NoSeries")
-                    + if (seasonFolder != null) (File.separator + seasonFolder + File.separator) else File.separator
+        val saveFolder = nobility.downloader.utils.EpisodeNaming.downloadDirectory(
+            File(downloadFolderPath), series?.name ?: episode.seriesName,
+            episode.name, episode.slug, Defaults.SEPARATE_SEASONS.boolean(), episode.isMovie
         )
-        if (!saveFolder.exists() && !saveFolder.mkdirs()) {
-            this@VideoDownloadData.error(
-                "Failed to create series save folder: ${saveFolder.absolutePath} " +
-                        "Defaulting to $downloadFolderPath${File.separator}NoSeries"
-            )
-            saveFolder = File(downloadFolderPath + File.separator + "NoSeries")
-            saveFolder.mkdirs()
+        check((saveFolder.isDirectory || saveFolder.mkdirs()) && saveFolder.canWrite()) {
+            "Cannot create or write the episode folder: ${saveFolder.absolutePath}"
         }
         val extraQualityName = if (updatedQuality != Quality.LOW)
             " (${updatedQuality.tag})" else ""
@@ -187,6 +176,7 @@ class VideoDownloadData(
 
     fun message(s: String) {
         Core.child.downloadThread.preparationStatus(queue.episode.slug, s)
+        if (mCurrentDownload != null && !s.startsWith("Successfully")) currentDownload.setProgress(s)
         FrogLog.message("$tag $s")
     }
 

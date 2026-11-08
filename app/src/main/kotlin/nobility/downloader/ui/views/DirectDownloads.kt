@@ -13,6 +13,7 @@ import kotlinx.coroutines.*
 import nobility.downloader.Page
 import nobility.downloader.core.Core
 import nobility.downloader.core.BoxHelper.Companion.string
+import nobility.downloader.core.BoxHelper.Companion.boolean
 import nobility.downloader.core.entities.Download
 import nobility.downloader.core.scraper.*
 import nobility.downloader.core.scraper.video_download.HiAnimeFallback
@@ -56,6 +57,13 @@ object DirectDownloads {
             catch (e: CancellationException) { report("Direct download cancelled."); throw e }
             catch (e: Exception) { report("Direct download: ${e.message}") }
             finally { busy = false }
+        }
+    }
+    fun retryFailed(requests: List<nobility.downloader.core.maintenance.FailedDownloads.Request>) = task {
+        for (request in requests) {
+            quality = request.quality; subtitles = request.subtitles
+            download(WatchCatalog.Show(request.series, request.seriesUrl, request.provider),
+                listOf(WatchCatalog.Entry(request.title, request.url, request.language)))
         }
     }
     fun startEpisode(value: WatchCatalog.Show, entry: WatchCatalog.Entry, requested: Quality, captions: Boolean) {
@@ -120,11 +128,18 @@ object DirectDownloads {
                 WatchCatalog.Provider.ANIMEFREAK -> AnimeFreak.filename(AnimeFreak.Series(value.title, emptyList()), AnimeFreak.Episode(URI(entry.url).path.trimEnd('/').substringAfterLast('/').toInt(), entry.url))
                 else -> EpisodeNaming.downloadFilename(entry.title, entry.url, value.title, false).replace(Regex("[\\\\/:*?\"<>|]"), "_") + " - ${entry.language.uppercase()}.mp4"
             }
-            val output = File(folder, filename)
+            val destination = EpisodeNaming.downloadDirectory(folder, value.title, filename, entry.url,
+                Defaults.SEPARATE_SEASONS.boolean(), false)
+            require((destination.isDirectory || destination.mkdirs()) && destination.canWrite()) {
+                "Cannot create or write the episode folder: ${destination.absolutePath}"
+            }
+            val output = File(destination, filename)
             entry to output
         }
         val batch = planned.map { (entry, output) ->
             val filename = output.name
+            nobility.downloader.core.maintenance.FailedDownloads.begin(nobility.downloader.core.maintenance.FailedDownloads.Request(
+                value.provider, value.title, value.url, entry.title, entry.url, entry.language, q, captions))
             val candidate = Download(output.absolutePath, System.currentTimeMillis(), q.resolution).apply {
                 name = filename.removeSuffix(".mp4"); slug = key(entry); seriesSlug = value.title
                 queued = true
@@ -141,6 +156,8 @@ object DirectDownloads {
             if (output.exists()) {
                 record.queued = false
                 if (record.isComplete) record.update() else { record.fileSize = 0; record.setProgress("Existing file — not verified; left unchanged"); record.update(false) }
+                if (record.isComplete) nobility.downloader.core.maintenance.FailedDownloads.complete(key(entry))
+                else nobility.downloader.core.maintenance.FailedDownloads.fail(key(entry), "Existing file is unverified; check or retry it")
                 report("${value.title}: ${entry.title} already exists; skipped.")
                 skipped++
                 continue
@@ -152,7 +169,7 @@ object DirectDownloads {
                 if (!acceptingProgress) return
                 record.setProgress(text)
                 val now = System.currentTimeMillis()
-                if (now - lastLog >= 10000) {
+                if (!text.contains("%") && now - lastLog >= 10000) {
                     report("${value.title} — ${entry.title}: $text")
                     lastLog = now
                 }
@@ -162,7 +179,7 @@ object DirectDownloads {
                 report("${value.provider.label}: downloading ${value.title} — ${entry.title}")
                 record.setProgress("Resolving video link…")
                 when (value.provider) {
-                    WatchCatalog.Provider.KIMCARTOON -> KimCartoon.download(value, entry, q, folder, captions) { progress(it) }
+                    WatchCatalog.Provider.KIMCARTOON -> KimCartoon.download(value, entry, q, output.parentFile, captions) { progress(it) }
                     WatchCatalog.Provider.ANIMEFREAK -> {
                         val ep = AnimeFreak.Episode(URI(entry.url).path.trimEnd('/').substringAfterLast('/').toInt(), entry.url)
                         val stream = AnimeFreak.resolve(ep)
@@ -183,13 +200,14 @@ object DirectDownloads {
                 require(output.isFile && output.length() > 5000) { "No complete video was produced" }
                 acceptingProgress = false
                 record.fileSize = output.length(); record.downloading = false; record.manualProgress = false; record.update()
-                report("Downloaded ${output.name}"); done++
+                report("Downloaded ${output.name}; validating video before completion."); done++
             } catch (e: CancellationException) {
                 acceptingProgress = false
                 record.downloading = false; record.setProgress("Cancelled"); record.update(false); throw e
             } catch (e: Exception) {
                 acceptingProgress = false; failed++
                 record.downloading = false; record.setProgress("Failed: ${e.message}"); record.update(false)
+                nobility.downloader.core.maintenance.FailedDownloads.fail(key(entry), e.message ?: "Download failed")
                 report("Failed ${entry.title}: ${e.message}")
             }
         }

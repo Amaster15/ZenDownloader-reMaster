@@ -8,7 +8,9 @@ public class DownloadStateTest {
    var d=new Download(file.toString(),1,720);
    if(d.isComplete())throw new AssertionError("Unverified existing file marked complete");
    d.setFileSize(12000);
-   if(!d.isComplete())throw new AssertionError("Finished file missing");
+   if(d.isComplete())throw new AssertionError("Size alone cannot prove a playable video");
+   nobility.downloader.core.maintenance.VideoValidation.INSTANCE.remember(file.toFile(),true,"Test verified");
+   if(!d.isComplete())throw new AssertionError("Verified file missing");
    d.setDownloading(true);
    if(d.isComplete())throw new AssertionError("Active file moved to completed");
    d.setDownloading(false);d.setQueued(true);

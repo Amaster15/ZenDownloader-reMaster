@@ -4,6 +4,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -53,6 +55,15 @@ class DownloadsView : ViewPage {
     @OptIn(ExperimentalFoundationApi::class)
     @Composable
     override fun Ui(windowScope: AppWindowScope) {
+        Column(Modifier.fillMaxSize()) {
+            DownloadTools.Ui()
+            Box(Modifier.weight(1f)) { Table(windowScope) }
+        }
+    }
+
+    @OptIn(ExperimentalFoundationApi::class)
+    @Composable
+    private fun Table(windowScope: AppWindowScope) {
         FullBox {
 
             val lazyListState = rememberLazyListState()
@@ -175,7 +186,8 @@ class DownloadsView : ViewPage {
                                 true
                             )
                         else ""
-                        val text = download.downloadProgress.value + time
+                        val progress = download.downloadProgress.value
+                        val text = (if (download.downloading && progress.matches(Regex(".*\\d+%.*"))) "Downloading $progress" else progress) + time
                         Text(
                             text = text,
                             modifier = Modifier

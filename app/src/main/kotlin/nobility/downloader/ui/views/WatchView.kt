@@ -181,7 +181,11 @@ class WatchView : ViewPage {
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             items(entries, key = { it.url + it.language }) { entry ->
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                    Text(entry.title, modifier = Modifier.weight(1f))
+                                    val progressKey = "${show.provider}|${entry.url}|${entry.language}"
+                                    val watched = nobility.downloader.core.maintenance.WatchProgress.get(progressKey)
+                                    Text(entry.title + if (watched.watched) " • Watched" else if (watched.seconds > 0) " • Resume ${watched.seconds.toInt()/60}:${(watched.seconds.toInt()%60).toString().padStart(2, '0')}" else "", modifier = Modifier.weight(1f))
+                                    TextButton(onClick = { nobility.downloader.core.maintenance.WatchProgress.mark(progressKey, !watched.watched) }) { Text(if (watched.watched) "Unwatched" else "Mark watched") }
+                                    if (watched.seconds > 0 && !watched.watched) TextButton(enabled = !busy, onClick = { nobility.downloader.core.maintenance.WatchProgress.reset(progressKey) }) { Text("Start over") }
                                     Button(enabled = !busy, onClick = {
                                         runTask {
                                             val playbackRequest = sequence
@@ -190,7 +194,7 @@ class WatchView : ViewPage {
                                             }
                                             status = "${VideoPlayer.playerForSetting()} started for ${entry.title}."
                                         }
-                                    }) { Text("Play") }
+                                    }) { Text(if (watched.seconds > 0 && !watched.watched) "Resume" else "Play") }
                                     if (show.provider in listOf(WatchCatalog.Provider.KIMCARTOON, WatchCatalog.Provider.ANIMEFREAK, WatchCatalog.Provider.HIANIME)) {
                                         TextButton(enabled = !busy && !DirectDownloads.isBusy, onClick = {
                                             DirectDownloads.startEpisode(show, entry, quality, includeKimSubtitles)

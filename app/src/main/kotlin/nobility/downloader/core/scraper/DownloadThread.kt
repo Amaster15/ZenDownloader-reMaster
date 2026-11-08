@@ -31,6 +31,7 @@ class DownloadThread {
 
     @Synchronized
     private fun track(episode: Episode) {
+        nobility.downloader.core.maintenance.FailedDownloads.wco(episode, null)
         preparation[episode.slug] = Download(dateAdded = System.currentTimeMillis()).apply {
             name = episode.name
             slug = episode.slug
@@ -113,6 +114,7 @@ class DownloadThread {
         if (nextDownload == null) {
             return
         }
+        nobility.downloader.core.maintenance.FailedDownloads.wco(nextDownload.episode, nextDownload.quality)
         preparationStatus(nextDownload.episode.slug, if (fallback) "Resolving HiAnime video link" else "Resolving video link")
         FrogLog.message("[S] [${nextDownload.episode.name}] Starting ${if (fallback) "HiAnime fallback" else "WCO download"}.")
         currentJobs.incrementAndGet()
@@ -141,6 +143,9 @@ class DownloadThread {
                     else -> lastStatus.ifBlank { "Attempt ended without a video file" }
                 }
                 preparationStatus(nextDownload.episode.slug, finalStatus)
+                val produced = Core.child.downloadList.any { it.slug == nextDownload.episode.slug && it.fileSize > 5000 && (it.downloadFile()?.length() ?: 0) >= it.fileSize }
+                if (!produced && !isDeferred(nextDownload.episode.slug))
+                    nobility.downloader.core.maintenance.FailedDownloads.fail(nextDownload.episode.slug, finalStatus)
                 FrogLog.message("[S] [${nextDownload.episode.name}] $finalStatus")
                 try { downloader?.killDriver() } finally { currentJobs.decrementAndGet() }
             }
@@ -165,6 +170,14 @@ class DownloadThread {
         val noJobs = currentJobs.get() <= 0
         val nothingToDownload = isQueueEmpty
         return noJobs && nothingToDownload
+    }
+
+    fun addRetry(episode: Episode, quality: Quality, fallback: Boolean) {
+        if (!isInQueue(episode)) {
+            track(episode)
+            downloadQueue.add(DownloadQueue(episode, quality = quality, allowFallback = fallback))
+            synchronizeDownloadsInQueue()
+        }
     }
 
     fun addToQueue(

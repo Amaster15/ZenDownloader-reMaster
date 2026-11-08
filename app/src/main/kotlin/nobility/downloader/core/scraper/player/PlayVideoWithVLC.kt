@@ -17,7 +17,9 @@ object PlayVideoWithVLC {
         userAgent: String,
         referrer: String,
         onStarted: (Process) -> Unit = {},
-        subtitle: java.io.File? = null
+        subtitle: java.io.File? = null,
+        resumeSeconds: Double = 0.0,
+        progress: ((Double, Double) -> Unit)? = null
     ): Resource<Boolean> {
 
         val vlcPath = findVlcPath()
@@ -39,6 +41,9 @@ object PlayVideoWithVLC {
             videoUrl
         )
 
+        if (resumeSeconds > 0) command.add(1, "--start-time=$resumeSeconds")
+        val port = if (progress != null) PlaybackTelemetry.port() else 0
+        if (progress != null) command.addAll(1, listOf("--extraintf=rc", "--rc-host=127.0.0.1:$port"))
         if (subtitle != null) command.add(1, "--sub-file=${subtitle.absolutePath}")
         return try {
             val process = ProcessBuilder(command).inheritIO().start()
@@ -46,6 +51,7 @@ object PlayVideoWithVLC {
                 return Resource.Error("VLC exited during startup (exit ${process.exitValue()}). Check its executable path and Error Console.")
             }
             nobility.downloader.core.Core.child.runningProcesses.add(process)
+            if (progress != null) PlaybackTelemetry.vlc(process, port, progress)
             onStarted(process)
             Resource.Success(true)
         } catch (e: Exception) {

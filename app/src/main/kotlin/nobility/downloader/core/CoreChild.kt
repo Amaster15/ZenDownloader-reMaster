@@ -80,6 +80,7 @@ class CoreChild {
                     FrogLog.message("FFmpeg and FFplay are ready.")
                 }
             }
+            downloadList.toList().forEach { it.updateProgress() }
             launch { downloadThread.run() }
             val result = ImageUpdateChecker.check()
             if (result.data == true) {

@@ -104,6 +104,15 @@ The console distinguishes player-loading failures, missing links, and video-serv
 
 Live tests completed all five Overgeared episodes from WCO at 720p and a separate HiAnime episode-2 download at 1080p with audio. Queue recovery tests passed; a complete live WCO-exhaustion-to-HiAnime run has not yet been verified.
 
+## Download reliability and library repair
+
+- **Queue** shows preparation, retries, transfer progress, validation, and failures. Percentage updates use one activity row per file.
+- **Repair folders…** previews registered episodes saved directly in the selected download folder. Confirmed moves use series/season folders, move adjacent `.srt`, `.vtt`, and `.ass` files, and update database paths. Existing destination files are skipped.
+- **Retry failed** retries unsuccessful episodes, preserves partial files as uniquely named `.retry-backup` files, and offers HiAnime fallback for WCO retries. It skips verified downloads.
+- **Check files** decodes videos with FFmpeg before marking them complete. Validation runs one file at a time, preserves failed files, and caches successful checks by file size and modification time. Older files may appear under Queue while being checked. A ten-minute validation limit leaves unusually long checks unverified rather than claiming success.
+- **Settings → Setup health / Repair setup** checks the browser/driver, media tools, and selected player. Automatic repair reinstalls managed dependencies; custom browser paths must be cleared first.
+- **Watch** remembers player-reported positions for FFplay, MPV, and VLC. Resume uses a freshly resolved stream URL. Episodes are marked watched at 95% of a known duration; manual Watched/Unwatched and Start over controls are also available. If a player or stream does not report position/duration, automatic tracking is unavailable rather than estimated from elapsed time.
+
 ## FFmpeg and optional players
 
 If the automatic FFmpeg download fails, place the appropriate executables in your user database folder:

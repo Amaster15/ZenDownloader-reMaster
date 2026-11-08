@@ -38,6 +38,16 @@ object EpisodeNaming {
         return Numbering(seasons ?: 1, episodes.single().groupValues[1].toInt())
     }
 
+    @JvmStatic fun downloadDirectory(root: java.io.File, series: String, name: String, slug: String,
+                                     separateSeasons: Boolean, movie: Boolean): java.io.File {
+        val safeSeries = series.fixForFiles().trim().takeUnless { it.isBlank() || it == "." || it == ".." } ?: "NoSeries"
+        val seriesFolder = java.io.File(root, safeSeries)
+        val number = numbering(name, slug, series, movie)
+        return if (separateSeasons && number != null)
+            java.io.File(seriesFolder, "Season ${number.season.toString().padStart(2, '0')}")
+        else seriesFolder
+    }
+
     @JvmStatic fun downloadFilename(name: String, slug: String, series: String, movie: Boolean = false): String {
         val formatted = filename(name, slug, series, movie)
         val title = series.trim()

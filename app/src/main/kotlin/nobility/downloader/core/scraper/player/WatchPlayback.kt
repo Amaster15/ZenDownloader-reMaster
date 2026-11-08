@@ -105,6 +105,12 @@ object WatchPlayback {
             val playbackBridge = bridge
             val playbackSubtitle = subtitle
             val player = VideoPlayer.playerForSetting()
+            val progressKey = "${show.provider}|${entry.url}|${entry.language}"
+            val saved = nobility.downloader.core.maintenance.WatchProgress.get(progressKey)
+            val resume = if (saved.watched) 0.0 else saved.seconds
+            val progress: (Double, Double) -> Unit = { seconds, duration ->
+                nobility.downloader.core.maintenance.WatchProgress.update(progressKey, seconds, duration)
+            }
             val started: (Process) -> Unit = { process ->
                 process.onExit().thenRun {
                     playbackBridge?.close()
@@ -116,10 +122,10 @@ object WatchPlayback {
                 }
             }
             val result = if (VideoPlayer.playerForSetting() == VideoPlayer.FFPLAY)
-                PlayVideoWithFfplay.play(url, userAgent, title, referer = referer, onStarted = started, subtitle = subtitle)
+                PlayVideoWithFfplay.play(url, userAgent, title, referer = referer, onStarted = started, subtitle = subtitle, resumeSeconds = resume, progress = progress)
             else if (player == VideoPlayer.VLC)
-                PlayVideoWithVLC.play(url, userAgent, referer, onStarted = started, subtitle = subtitle)
-            else PlayVideoWithMpv.play(url, userAgent, title, referer = referer, onStarted = started, subtitle = subtitle)
+                PlayVideoWithVLC.play(url, userAgent, referer, onStarted = started, subtitle = subtitle, resumeSeconds = resume, progress = progress)
+            else PlayVideoWithMpv.play(url, userAgent, title, referer = referer, onStarted = started, subtitle = subtitle, resumeSeconds = resume, progress = progress)
             if (result.isFailed) error(result.message ?: "Unable to start video player")
             subtitle = null
             bridge = null // The player now owns cleanup, including when it is stopped on app shutdown.

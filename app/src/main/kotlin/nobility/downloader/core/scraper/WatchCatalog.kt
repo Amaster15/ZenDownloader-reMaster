@@ -38,7 +38,8 @@ object WatchCatalog {
         }
     }
 
-    suspend fun search(query: String, provider: Provider): List<Show> = withContext(Dispatchers.IO) {
+    @JvmOverloads
+    suspend fun search(query: String, provider: Provider, showBrowser: Boolean = false): List<Show> = withContext(Dispatchers.IO) {
         val q = query.trim()
         require(q.isNotEmpty()) { "Enter a series name or series URL" }
         if (provider == Provider.KIMCARTOON && q.startsWith("https://")) return@withContext listOf(KimCartoon.show(q))
@@ -65,7 +66,8 @@ object WatchCatalog {
             else if (provider == Provider.ANIMEFREAK) "https://animefreak.it.com/search?keyword=$encoded"
             else if (provider == Provider.HIANIME) "https://hianime.ms/search?q=$encoded"
             else "".slugToLink().trimEnd('/') + "/search"
-        val html = if (provider == Provider.WCO) searchWco(q, url) else read(url, provider)
+        val html = if (provider == Provider.WCO) searchWco(q, url)
+            else if (provider == Provider.ANIMEFREAK) AnimeFreak.catalogHtml(url, showBrowser) else read(url, provider)
         val results = parseSearch(html, url, provider)
         if (provider == Provider.ANIMEFREAK) {
             AnimeTitleIndex.remember(results)
