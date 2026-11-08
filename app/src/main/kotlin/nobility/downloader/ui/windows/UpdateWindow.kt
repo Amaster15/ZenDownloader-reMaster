@@ -263,6 +263,9 @@ class UpdateWindow(
             Defaults.DENIED_UPDATE.update(false)
         }
         Defaults.UPDATE_VERSION.update(update.version)
+        withContext(Dispatchers.Main) {
+            nobility.downloader.core.updates.AppUpdateStatus.recordVersion(update.version)
+        }
         val latest = Updater.isLatest(update.version)
         if (justCheck && Defaults.DENIED_UPDATE.boolean()) {
             close()

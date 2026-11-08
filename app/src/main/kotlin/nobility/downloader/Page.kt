@@ -4,7 +4,8 @@ import nobility.downloader.core.Core
 import nobility.downloader.ui.views.ViewPage
 
 enum class Page(val title: String) {
-    DOWNLOADER("Download"),
+    DOWNLOADER("In progress"),
+    DIRECT_LINK("Direct link"),
     WATCH("Watch"),
     DOWNLOADS("Downloads"),
     COMPLETED("Completed"),
@@ -17,7 +18,7 @@ enum class Page(val title: String) {
     ERROR_CONSOLE("Error Console");
 
     val mainPage: Page get() = when (this) {
-        DOWNLOADS, COMPLETED -> DOWNLOADER
+        DOWNLOADS, COMPLETED, DIRECT_LINK -> DOWNLOADER
         HISTORY, FAVORITES, NEW_EPISODES -> FOLLOW
         else -> this
     }
@@ -60,7 +61,7 @@ enum class Page(val title: String) {
             // might check Core::view.isInitialized
             return when (this) {
                 DOWNLOADS, COMPLETED -> Core.downloadsView
-                DOWNLOADER -> Core.downloaderView
+                DOWNLOADER, DIRECT_LINK -> Core.downloaderView
                 WATCH -> Core.watchView
                 HISTORY -> Core.historyView
                 FOLLOW, NEW_EPISODES -> Core.followSeriesView

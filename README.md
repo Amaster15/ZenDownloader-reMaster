@@ -34,7 +34,7 @@ Keep `app`, `runtime`, and `launcher.jar` together. Use the launcher scripts so 
 
 ## App updates
 
-Open **Settings → App updates → Check for updates** to check releases from this repository. Download the update inside the app, then choose **Install and restart** after stopping active downloads. Downloads are staged and validated before installation; your settings and library remain in your user profile.
+The app quietly checks for updates at startup and shows a red indicator on Settings and the update control when a newer release is available. Open **Settings → App updates → Check for updates** to check releases from this repository. Download the update inside the app, then choose **Install and restart** after stopping active downloads. Downloads are staged and validated before installation; your settings and library remain in your user profile.
 
 **Upgrading from 1.3.3 or earlier:** download and extract the full 1.4.0 ZIP once to get the new launcher. Keep the new `launcher.jar`, `app`, and `runtime` together, and launch using `run.bat` or `run.sh`. Updating only the JAR does not upgrade the old launcher.
 
@@ -42,13 +42,13 @@ Open **Settings → App updates → Check for updates** to check releases from t
 
 Use **Watch → AnimeFreak** to search by title or paste a series URL, then choose **Play** or **Download** beside an episode. Search remembers display titles and URL names for the same series, so previously found English and romanized Japanese names remain searchable. Alternate URL names appear below results. This is a learned title index, not automatic translation. Watching uses the source quality and your selected player. Downloads from Watch stop if you leave the Watch tab; use the batch panel for longer queues.
 
-Under **Downloads → Add downloads → AnimeFreak**, paste a series or episode URL from `animefreak.it.com`, load the episode list, select episodes, then choose **Download selected**. This currently supports the EchoVideo player. Chrome/Chromium loads the provider pages; FFmpeg downloads the HLS stream into an MP4 in your configured download folder.
+Under **Downloads → Direct link**, paste an `animefreak.it.com` URL. Episode links start that episode; series links load an episode picker. You can also search **Browse → AnimeFreak** and choose Download. This currently supports the EchoVideo player. Chrome/Chromium loads the provider pages; FFmpeg downloads the HLS stream into an MP4 in your configured download folder.
 
-Files use the series title and season/episode numbering. Existing files are skipped. Cancel stops the current download and removes its partial file; completed files remain. This provider has its own batch status and episode results in the AnimeFreak panel, separate from the WCO queue and automatic HiAnime fallback. Browser verification or provider changes may interrupt loading; errors are displayed in the panel.
+Files use the series title and season/episode numbering. Existing files are skipped. Cancel stops the current download and removes its partial file; completed files remain. Direct downloads appear in the shared Queue and Completed lists, with activity in In progress. They remain separate from automatic WCO-to-HiAnime fallback. Browser verification or provider changes may interrupt loading; errors are reported in the activity log.
 
 ## Watching episodes
 
-Use the **Watch** tab beside Browse to play episodes. In Watch, choose WCO or HiAnime, search for a series (or paste its series URL), then choose an episode and press **Play**. Playback uses the FFplay, mpv, or VLC player selected in Watch or Settings, without opening the site's advertising pages. The **Get VLC** button opens the official VideoLAN download page; VLC must be installed separately. HiAnime currently supports the Ayame player and lists available dub/sub episodes separately.
+Use the **Watch** tab beside Browse to play episodes. In Watch, choose WCO, HiAnime, AnimeFreak, or KimCartoon, search for a series (or paste its series URL), then choose an episode and press **Play**. Playback uses the FFplay, mpv, or VLC player selected in Watch or Settings, without opening the site's advertising pages. The **Get VLC** button opens the official VideoLAN download page; VLC must be installed separately. HiAnime currently supports the Ayame player and lists available dub/sub episodes separately.
 
 Watch reuses the WCO database for title search, stores episode lists for six hours, and shows when each list was saved. **Refresh episodes** checks the provider again; a failed refresh keeps the saved list visible. Media links are resolved afresh for each playback. WCO MP4 links are checked before the player starts and streamed through a private local connection with seeking support, using the downloader’s existing connection and certificate policy. WCO link retries follow the page retry settings and can be cancelled. HiAnime chunks are cleaned as they stream through a private local connection; closing the player releases that connection and its small memory cache.
 
@@ -62,7 +62,7 @@ New episode downloads use the series title followed by a season/episode code, fo
 
 The four main tabs are **Browse**, **Watch**, **Downloads**, and **My Library**. Browse opens on startup, with search and filters above compact series rows. Watch, Download, Favorite (star), and Follow (bookmark) actions are visible on each row; descriptions and genres expand under Details. Right-click actions remain available.
 
-Downloads groups **Add downloads**, **Queue**, and **Completed**. My Library groups **New episodes**, **Followed**, **Favorites**, and **History**. Its badge and the new-episode banner show unread episode discoveries. Following checks series on startup; favoriting only saves a series. **Settings** opens the existing full settings page; **Error Console** is a labeled top-level action with a new-error indicator. Player selection and Get VLC remain in Watch.
+Downloads groups **In progress** (activity log), **Direct link**, **Queue**, and **Completed**. Direct link detects WCO, HiAnime, AnimeFreak, or KimCartoon from the URL. Episode links resolve immediately; series links offer episode selection. Browse offers provider choices for search. Queue includes WCO episodes waiting for player/link resolution and displays their current status. Use F12 to open Direct link. My Library groups **New episodes**, **Followed**, **Favorites**, and **History**. Its badge and the new-episode banner show unread episode discoveries. Following checks series on startup; favoriting only saves a series. **Settings** opens the existing full settings page; **Error Console** is a labeled top-level action with a new-error indicator. Player selection and Get VLC remain in Watch.
 
 ## Video database and favorites
 
@@ -80,7 +80,7 @@ Use **Follow** in Watch or **Follow Series** in a series' download episode list.
 
 1. Open the app and let the initial database assets finish downloading.
 2. Choose your save folder and preferred quality in Settings.
-3. Paste a WCO series or episode URL, then select the episodes to download.
+3. Open Downloads → Direct link and paste a supported episode or series URL, or search a provider in Browse and choose Download.
 4. Follow progress in Downloads and the console.
 
 The downloader waits for the player popup's countdown, allows two extra seconds before closing it, waits for the player to load, and checks for a visible Play button before extracting links. Each episode's countdown updates on one console line.
@@ -163,3 +163,11 @@ Donations are optional. Thank you for supporting the project!
 ## Original project credit
 
 ZenDownloader-reMaster is a fork of **[NobilityDeviant/ZenDownloader](https://github.com/NobilityDeviant/ZenDownloader)**. Credit for the original application goes to NobilityDeviant and its contributors. This fork maintains the changes described above independently. Original copyright notices and the [Apache 2.0 license](LICENSE) are retained.
+
+## KimCartoon
+
+Choose **KimCartoon** in Watch to search by title or paste a series/episode URL. Watch uses your selected VLC, MPV, or FFplay player. Quality options are 360p, 720p, and 1080p (the closest available lower quality is used). English captions are loaded for watching when supplied by the host.
+
+For batch downloads, use **Downloads → Direct link** or choose Download from **Browse → KimCartoon**. Choose SUB or DUB, select episodes and quality, and use the **Include subtitles when available** checkbox. Checked embeds supplied English captions as a selectable MP4 subtitle track; unchecked saves video/audio only. Filenames contain the series, SxxExx numbering, and SUB/DUB to avoid collisions. Existing files are kept; cancellation removes partial downloads. Direct-link batch work continues when switching main tabs; downloads appear in Queue/Completed and progress messages appear in In progress. It does not use automatic WCO fallback. Single downloads in Watch stop when leaving Watch.
+
+You can favorite or follow KimCartoon series from Watch. Favorites appear in My Library under All/Unsorted; followed series use startup episode checks and new-episode notices. Followed/favorited series offer Watch and Download actions. The site advertises both language buttons even where a host file is missing; removed files are reported without switching languages. Temporary resolution errors use the configured page-link retry count and delay.

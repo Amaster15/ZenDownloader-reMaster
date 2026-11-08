@@ -38,6 +38,7 @@ class KeyEvents {
             Page.entries.forEach { page ->
                 var key1: Key
                 when (page) {
+                    Page.DIRECT_LINK -> { key1 = Key.F12 }
                     Page.NEW_EPISODES -> { key1 = Key.F10 }
                     Page.COMPLETED -> { key1 = Key.F11 }
                     Page.DATABASE -> { key1 = Key.F8 }

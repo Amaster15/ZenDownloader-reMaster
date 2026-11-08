@@ -17,9 +17,18 @@ object WatchPlayback {
         var userAgent = "Mozilla/5.0"
         val referer = ""
         var bridge: java.io.Closeable? = null
+        var subtitle: java.io.File? = null
         try {
             val url: String
-            if (show.provider == WatchCatalog.Provider.ANIMEFREAK) {
+            if (show.provider == WatchCatalog.Provider.KIMCARTOON) {
+                status("Resolving KimCartoon ${entry.language} player…")
+                val stream = nobility.downloader.core.scraper.KimCartoon.resolve(entry, quality, status)
+                subtitle = nobility.downloader.core.scraper.KimCartoon.subtitleFile(stream)
+                val local = nobility.downloader.core.scraper.AnimeFreak.playback(stream.media)
+                bridge = local
+                url = local.url
+                status("Opening ${stream.height}p playback…")
+            } else if (show.provider == WatchCatalog.Provider.ANIMEFREAK) {
                 status("Resolving the AnimeFreak player…")
                 val episode = nobility.downloader.core.scraper.AnimeFreak.Episode(entry.url.trimEnd('/').substringAfterLast('/').toInt(), entry.url)
                 val stream = nobility.downloader.core.scraper.AnimeFreak.resolve(episode)
@@ -94,10 +103,12 @@ object WatchPlayback {
             status("Opening player…")
             val title = "${show.title} — ${entry.title}"
             val playbackBridge = bridge
+            val playbackSubtitle = subtitle
             val player = VideoPlayer.playerForSetting()
             val started: (Process) -> Unit = { process ->
                 process.onExit().thenRun {
                     playbackBridge?.close()
+                    playbackSubtitle?.delete()
                     nobility.downloader.core.Core.taskScope.launch {
                         status(if (process.exitValue() == 0) "$player closed."
                             else "$player exited (code ${process.exitValue()}). See Error Console or select another player.")
@@ -105,12 +116,13 @@ object WatchPlayback {
                 }
             }
             val result = if (VideoPlayer.playerForSetting() == VideoPlayer.FFPLAY)
-                PlayVideoWithFfplay.play(url, userAgent, title, referer = referer, onStarted = started)
+                PlayVideoWithFfplay.play(url, userAgent, title, referer = referer, onStarted = started, subtitle = subtitle)
             else if (player == VideoPlayer.VLC)
-                PlayVideoWithVLC.play(url, userAgent, referer, onStarted = started)
-            else PlayVideoWithMpv.play(url, userAgent, title, referer = referer, onStarted = started)
+                PlayVideoWithVLC.play(url, userAgent, referer, onStarted = started, subtitle = subtitle)
+            else PlayVideoWithMpv.play(url, userAgent, title, referer = referer, onStarted = started, subtitle = subtitle)
             if (result.isFailed) error(result.message ?: "Unable to start video player")
+            subtitle = null
             bridge = null // The player now owns cleanup, including when it is stopped on app shutdown.
-        } finally { bridge?.close() }
+        } finally { bridge?.close(); subtitle?.delete() }
     }
 }

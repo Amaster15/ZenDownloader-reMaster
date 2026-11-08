@@ -1,7 +1,9 @@
 package nobility.downloader.core.scraper
 
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import nobility.downloader.core.entities.Download
 import kotlinx.coroutines.*
 import nobility.downloader.core.BoxHelper.Companion.boolean
 import nobility.downloader.core.BoxHelper.Companion.int
@@ -24,6 +26,25 @@ class DownloadThread {
 
     val downloadQueue: MutableList<DownloadQueue> = Collections
         .synchronizedList(mutableStateListOf())
+    // Preparation exists before a file/quality is known; never persist these as completed files.
+    val preparation = mutableStateMapOf<String, Download>()
+
+    @Synchronized
+    private fun track(episode: Episode) {
+        preparation[episode.slug] = Download(dateAdded = System.currentTimeMillis()).apply {
+            name = episode.name
+            slug = episode.slug
+            seriesSlug = episode.seriesSlug
+            queued = true
+            setProgress("Queued")
+        }
+    }
+
+    @Synchronized
+    fun preparationStatus(slug: String, status: String) {
+        preparation[slug]?.setProgress(status)
+    }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var currentJobs = AtomicInteger(0)
     private var stopJob: Job? = null
@@ -31,7 +52,10 @@ class DownloadThread {
 
     @Synchronized
     fun deferHiAnime(queue: DownloadQueue) {
-        if (Core.child.isRunning) hiAnimeQueue[queue.episode.slug] = queue
+        if (Core.child.isRunning) {
+            hiAnimeQueue[queue.episode.slug] = queue
+            preparationStatus(queue.episode.slug, "Waiting for HiAnime fallback")
+        }
         synchronizeDownloadsInQueue()
     }
 
@@ -89,6 +113,7 @@ class DownloadThread {
         if (nextDownload == null) {
             return
         }
+        preparationStatus(nextDownload.episode.slug, if (fallback) "Resolving HiAnime video link" else "Resolving video link")
         currentJobs.incrementAndGet()
         scope.launch(Dispatchers.IO) {
             val downloader = VideoDownloadHandler(
@@ -103,11 +128,17 @@ class DownloadThread {
                     e
                 )
             } finally {
+                preparationStatus(nextDownload.episode.slug,
+                    if (!Core.child.isRunning) "Stopped" else if (isDeferred(nextDownload.episode.slug))
+                        "Waiting for HiAnime fallback" else "Finished attempt — see Error Console if no file was downloaded")
                 downloader.killDriver()
                 currentJobs.decrementAndGet()
             }
         }
     }
+
+    @Synchronized
+    private fun isDeferred(slug: String) = hiAnimeQueue.containsKey(slug)
 
     @Synchronized
     private fun takeHiAnimeIfReady(): DownloadQueue? {
@@ -131,6 +162,7 @@ class DownloadThread {
         m3U8Data: M3U8Data
     ): Boolean {
         if (!isInQueue(episode)) {
+            track(episode)
             downloadQueue.add(
                 DownloadQueue(
                     episode,
@@ -160,6 +192,7 @@ class DownloadThread {
         var added = 0
         for (dl in downloads) {
             if (!isInQueue(dl)) {
+                track(dl)
                 downloadQueue.add(
                     DownloadQueue(
                         dl,
@@ -176,6 +209,7 @@ class DownloadThread {
     fun removeFromQueue(
         queue: DownloadQueue
     ) {
+        preparation.remove(queue.episode.slug)
         downloadQueue.removeIf {
             it.episode.matches(queue.episode)
         }
@@ -202,6 +236,7 @@ class DownloadThread {
 
     @Synchronized
     fun clear() {
+        preparation.clear()
         downloadQueue.clear()
         hiAnimeQueue.clear()
         synchronizeDownloadsInQueue()

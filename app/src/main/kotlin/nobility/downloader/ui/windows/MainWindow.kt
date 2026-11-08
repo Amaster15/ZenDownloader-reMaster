@@ -46,7 +46,7 @@ fun MainWindow(scope: AppWindowScope) {
     UiWrapper {
         Column(Modifier.fillMaxSize()) {
             val subPages = when (Core.currentPage.mainPage) {
-                Page.DOWNLOADER -> listOf(Page.DOWNLOADER, Page.DOWNLOADS, Page.COMPLETED)
+                Page.DOWNLOADER -> listOf(Page.DOWNLOADER, Page.DIRECT_LINK, Page.DOWNLOADS, Page.COMPLETED)
                 Page.FOLLOW -> listOf(Page.NEW_EPISODES, Page.FOLLOW, Page.FAVORITES, Page.HISTORY)
                 else -> emptyList()
             }
@@ -55,7 +55,7 @@ fun MainWindow(scope: AppWindowScope) {
                     items(subPages) { page ->
                         FilterChip(selected = Core.currentPage == page, onClick = { Core.changePage(page) }, label = {
                             Text(when (page) {
-                                Page.DOWNLOADER -> "Add downloads"
+                                Page.DOWNLOADER -> "In progress"
                                 Page.DOWNLOADS -> "Queue"
                                 Page.FOLLOW -> "Followed"
                                 Page.NEW_EPISODES -> "New episodes (${nobility.downloader.core.scraper.FollowSeries.unreadCount})"
@@ -68,12 +68,13 @@ fun MainWindow(scope: AppWindowScope) {
             Box(Modifier.weight(1f)) {
         when (Core.currentPage) {
             Page.DOWNLOADER -> Core.downloaderView.Ui(scope)
+            Page.DIRECT_LINK -> nobility.downloader.ui.views.DirectDownloads.Ui()
             Page.WATCH -> Core.watchView.Ui(scope)
             Page.DOWNLOADS, Page.COMPLETED -> Core.downloadsView.Ui(scope)
             Page.SETTINGS -> Core.settingsView.Ui(scope)
             Page.HISTORY -> Core.historyView.Ui(scope)
             Page.FOLLOW, Page.NEW_EPISODES -> Core.followSeriesView.Ui(scope)
-            Page.DATABASE -> Core.databaseView.Ui(scope)
+            Page.DATABASE -> nobility.downloader.ui.views.ProviderBrowse.Ui(scope)
             Page.FAVORITES -> Core.favoritesView.Ui(scope)
             Page.ERROR_CONSOLE -> Core.errorConsoleView.Ui(scope)
         }
@@ -128,7 +129,7 @@ private fun UiWrapper(
                         TextButton(
                             onClick = { Core.openSettings() },
                             colors = ButtonDefaults.textButtonColors(contentColor = Color.Black)
-                        ) { Text("Settings") }
+                        ) { Text("Settings"); UpdateIndicator() }
                         TextButton(
                             onClick = { Core.changePage(Page.ERROR_CONSOLE) },
                             colors = ButtonDefaults.textButtonColors(contentColor = Color.Black)

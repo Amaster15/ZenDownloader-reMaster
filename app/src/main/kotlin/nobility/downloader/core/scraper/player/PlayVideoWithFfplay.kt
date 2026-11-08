@@ -7,6 +7,7 @@ import nobility.downloader.core.scraper.video_download.m3u8_downloader.util.Vide
 object PlayVideoWithFfplay {
 
     //0, 9 volume keys
+    @JvmOverloads
     fun play(
         url: String,
         userAgent: String,
@@ -14,13 +15,14 @@ object PlayVideoWithFfplay {
         ffplayPath: String = VideoUtil.FfmpegPathHolder.ffplayPath,
         referer: String = "",
         onStarted: (Process) -> Unit = {},
+        subtitle: java.io.File? = null
     ): Resource<Boolean> {
 
         if (ffplayPath.isEmpty()) {
             return Resource.Error("ffplay not found.")
         }
 
-        val command = listOf(
+        val command = mutableListOf(
             ffplayPath,
             "-volume", "50",
             "-window_title", windowTitle,
@@ -33,6 +35,10 @@ object PlayVideoWithFfplay {
             url
         )
 
+        if (subtitle != null) {
+            val escaped = subtitle.absolutePath.replace("\\", "/").replace(":", "\\:").replace("'", "'\\\\''")
+            command.addAll(1, listOf("-vf", "subtitles=filename='$escaped'"))
+        }
         val log = java.io.File.createTempFile("zen-player-", ".log")
         return try {
 

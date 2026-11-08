@@ -160,7 +160,8 @@ class Core private constructor() {
             }
             reloadRandomSeries()
             initialized = true
-            openUpdate(true)
+            nobility.downloader.core.updates.AppUpdateStatus.checkOnStartup()
+            nobility.downloader.core.scraper.ProviderFavorites.load()
             nobility.downloader.core.scraper.FollowSeries.load()
             nobility.downloader.core.scraper.FollowSeries.checkAll()
         }

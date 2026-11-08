@@ -137,6 +137,9 @@ class DatabaseWindow(private val favoritesOnly: Boolean = false) : nobility.down
         val byDesc by searchByDesc.collectAsState()
         var reverse by remember { mutableStateOf(false) }
         val rows = remember(entries, reverse) { entries.sortedBy { it.name.lowercase() }.let { if (reverse) it.reversed() else it } }
+        val providerRows = if (favoritesOnly && type in listOf(DatabaseType.ALL, DatabaseType.MISC))
+            nobility.downloader.core.scraper.ProviderFavorites.items.sortedBy { it.title.lowercase() }.let { if (reverse) it.reversed() else it }
+            else emptyList()
         val listState = rememberLazyListState()
         LaunchedEffect(type, search, byGenre, byDesc, reverse) { listState.scrollToItem(0) }
         Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -161,11 +164,30 @@ class DatabaseWindow(private val favoritesOnly: Boolean = false) : nobility.down
                 if (!favoritesOnly) FilterChip(selected = byGenre, onClick = { mSearchByGenre.value = !byGenre; Defaults.DB_SEARCH_GENRE.update(!byGenre) }, label = { Text("Include genres") })
                 if (!favoritesOnly) FilterChip(selected = byDesc, onClick = { mSearchByDesc.value = !byDesc; Defaults.DB_SEARCH_DESC.update(!byDesc) }, label = { Text("Include descriptions") })
                 TextButton(onClick = { reverse = !reverse }) { Text(if (reverse) "Sort: Z–A" else "Sort: A–Z") }
-                Text("${rows.size} series", modifier = Modifier.padding(vertical = 12.dp), style = MaterialTheme.typography.bodySmall)
+                Text("${rows.size + providerRows.size} series", modifier = Modifier.padding(vertical = 12.dp), style = MaterialTheme.typography.bodySmall)
             }
-            if (rows.isEmpty()) Text(if (favoritesOnly) "No matching favorites. Use the star beside a series in Browse." else "No matches in your saved catalog. Update the catalog or try a series URL in Downloads.")
+            if (rows.isEmpty() && providerRows.isEmpty()) Text(if (favoritesOnly) "No matching favorites. Use the star beside a series in Browse." else "No matches in your saved catalog. Update the catalog or try a series URL in Downloads.")
             Box(Modifier.weight(1f)) {
                 LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(end = 12.dp)) {
+                    if (favoritesOnly) items(providerRows, key = { "provider:" + it.url }) { saved ->
+                        ContextMenuArea(items = { listOf(
+                            ContextMenuItem("Download") { Core.changePage(nobility.downloader.Page.DOWNLOADER); Core.downloaderView.openKimCartoon(saved) },
+                            ContextMenuItem("Remove from favorites") { nobility.downloader.core.scraper.ProviderFavorites.toggle(saved) },
+                            ContextMenuItem(if (nobility.downloader.core.scraper.FollowSeries.isFollowing(saved)) "Unfollow series" else "Follow series") { nobility.downloader.core.scraper.FollowSeries.toggle(saved) }
+                        ) }) {
+                            Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+                                Text(saved.title, style = MaterialTheme.typography.titleMedium)
+                                Text(saved.provider.label, style = MaterialTheme.typography.bodySmall)
+                                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Button({ Core.changePage(nobility.downloader.Page.WATCH); Core.watchView.openShow(saved) }) { Text("Watch") }
+                                    OutlinedButton({ Core.changePage(nobility.downloader.Page.DOWNLOADER); Core.downloaderView.openKimCartoon(saved) }) { Text("Download") }
+                                    TextButton({ nobility.downloader.core.scraper.FollowSeries.toggle(saved) }) { Text(if (nobility.downloader.core.scraper.FollowSeries.isFollowing(saved)) "Unfollow" else "Follow") }
+                                    TextButton({ nobility.downloader.core.scraper.ProviderFavorites.toggle(saved) }) { Text("★ Remove favorite") }
+                                }
+                            }
+                            HorizontalDivider()
+                        }
+                    }
                     items(rows, key = { "${it.identity}:${it.slug}:${it.id}" }) { item ->
                         val favorite = remember(item.slug, revision) { BoxHelper.isSeriesFavorited(item) }
                         val show = followShow(item)

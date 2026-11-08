@@ -158,7 +158,10 @@ object AnimeFreak {
         EpisodeNaming.downloadFilename("Episode ${episode.number}", episode.url, series.title)
             .replace(Regex("[\\\\/:*?\"<>|\\p{Cntrl}]"), "_").trim().take(180) + ".mp4"
 
-    suspend fun download(stream: Stream, output: File, status: (String) -> Unit) = withContext(Dispatchers.IO) {
+    suspend fun download(stream: Stream, output: File, status: (String) -> Unit) =
+        downloadWithSubtitle(stream, output, null, status)
+
+    suspend fun downloadWithSubtitle(stream: Stream, output: File, subtitle: File?, status: (String) -> Unit) = withContext(Dispatchers.IO) {
         require(!output.exists()) { "File already exists: ${output.name}" }
         val ffmpeg = VideoUtil.loadFfmpegPath()
         require(ffmpeg.isNotBlank()) { "Install FFmpeg from Settings before downloading from AnimeFreak." }
@@ -174,7 +177,11 @@ object AnimeFreak {
                 "-rw_timeout", "20000000", "-allowed_extensions", "ALL")
             if ("extension_picky" in options) command.addAll(listOf("-extension_picky", "0"))
             command.addAll(listOf("-user_agent", stream.userAgent, "-referer", stream.referer,
-                "-i", stream.url, "-c", "copy", "-movflags", "+faststart", temp.absolutePath))
+                "-i", stream.url))
+            if (subtitle != null) command.addAll(listOf("-i", subtitle.absolutePath))
+            command.addAll(listOf("-map", "0:v:0", "-map", "0:a:0?", "-c", "copy"))
+            if (subtitle != null) command.addAll(listOf("-map", "1:0", "-c:s", "mov_text", "-metadata:s:s:0", "language=eng"))
+            command.addAll(listOf("-movflags", "+faststart", temp.absolutePath))
             process = ProcessBuilder(command).redirectErrorStream(true).redirectOutput(log).start()
             while (!process.waitFor(500, TimeUnit.MILLISECONDS)) {
                 currentCoroutineContext().ensureActive()

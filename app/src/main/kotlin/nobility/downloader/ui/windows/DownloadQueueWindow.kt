@@ -81,9 +81,9 @@ class DownloadQueueWindow {
                             "Position",
                             0.1f,
                             weightSaveKey = Save.DQ_P_WEIGHT
-                        ) { index, _ ->
+                        ) { _, queue ->
                             Text(
-                                text = index.toString(),
+                                text = (thread.downloadQueue.indexOf(queue) + 1).toString(),
                                 color = MaterialTheme.colorScheme.onTertiaryContainer,
                                 fontSize = MaterialTheme.typography.bodyMedium.fontSize,
                                 textAlign = TextAlign.Center

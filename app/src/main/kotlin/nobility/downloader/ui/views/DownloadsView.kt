@@ -91,6 +91,16 @@ class DownloadsView : ViewPage {
                 }
             }
 
+            val records = Core.child.downloadList.toList()
+            val preparing = Core.child.downloadThread.preparation.values.filter { pending ->
+                records.none { it.slug == pending.slug }
+            }
+            val displayed = if (Core.currentPage == Page.COMPLETED) {
+                records.filter { it.downloadProgress.value; it.isComplete }
+            } else {
+                preparing + records.filter { it.downloadProgress.value; !it.isComplete }
+            }
+
             LazyTable(
                 listOf(
                     ColumnItem(
@@ -135,7 +145,7 @@ class DownloadsView : ViewPage {
                         sortSelector = { it.fileSize }
                     ) { _, download ->
                         Text(
-                            text = Tools.bytesToString(download.fileSize),
+                            text = if (download.fileSize > 0) Tools.bytesToString(download.fileSize) else "—",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = MaterialTheme.typography.bodySmall.fontSize,
                             textAlign = TextAlign.Center
@@ -178,10 +188,7 @@ class DownloadsView : ViewPage {
                         )
                     }
                 ),
-                Core.child.downloadList.filter { download ->
-                    download.downloadProgress.value // Observe completion progress so rows move between tabs.
-                    if (Core.currentPage == Page.COMPLETED) download.isComplete else !download.isComplete
-                },
+                displayed,
                 key = { it.nameAndResolution() + it.hashCode() },
                 lazyListState = lazyListState,
                 endingComparator = Tools.downloadProgressComparator,
@@ -189,7 +196,11 @@ class DownloadsView : ViewPage {
                 sortSaveKey = Save.DV_SORT,
                 scope = composeScope,
                 rightClickOptions = { _, download ->
-                    listOf(
+                    if (download in preparing) listOf(
+                        DropdownOption("Download", EvaIcons.Fill.Info) {
+                            Core.openSeriesDetails(download.seriesSlug, windowScope)
+                        }
+                    ) else listOf(
                         DropdownOption(
                             "Resume",
                             EvaIcons.Fill.Download,

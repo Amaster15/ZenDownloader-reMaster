@@ -22,13 +22,15 @@ object PlayVideoWithMpv {
         }
     }
 
+    @JvmOverloads
     fun play(
         url: String,
         userAgent: String,
         windowTitle: String = url,
         mpvPath: String = Defaults.MPV_PATH.string().ifEmpty { "mpv" },
         referer: String = "",
-        onStarted: (Process) -> Unit = {}
+        onStarted: (Process) -> Unit = {},
+        subtitle: java.io.File? = null
     ): Resource<Boolean> {
 
         if (!isMpvInstalled(mpvPath)) {
@@ -52,6 +54,7 @@ object PlayVideoWithMpv {
             url
         )
         if (referer.isNotEmpty()) command.add(1, "--referrer=$referer")
+        if (subtitle != null) command.add(1, "--sub-file=${subtitle.absolutePath}")
         return try {
 
             val process = ProcessBuilder(command)

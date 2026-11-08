@@ -19,7 +19,7 @@ import java.security.MessageDigest
 
 /** Cache catalog metadata only. Signed media URLs are always resolved at playback time. */
 object WatchCatalog {
-    enum class Provider(val label: String) { WCO("WCO"), HIANIME("HiAnime"), ANIMEFREAK("AnimeFreak") }
+    enum class Provider(val label: String) { WCO("WCO"), HIANIME("HiAnime"), ANIMEFREAK("AnimeFreak"), KIMCARTOON("KimCartoon") }
     data class Show(val title: String, val url: String, val provider: Provider)
     data class Entry(val title: String, val url: String, val language: String = "")
     data class Listing(val fetchedAt: Long, val entries: List<Entry>)
@@ -28,6 +28,7 @@ object WatchCatalog {
 
     private suspend fun read(url: String, provider: Provider): String = withContext(Dispatchers.IO) {
         currentCoroutineContext().ensureActive()
+        if (provider == Provider.KIMCARTOON) return@withContext KimCartoon.read(url)
         if (provider == Provider.ANIMEFREAK) return@withContext AnimeFreak.catalogHtml(url)
         if (provider == Provider.WCO) {
             val result = Functions.readUrlLines(url, "Watch catalog")
@@ -40,6 +41,7 @@ object WatchCatalog {
     suspend fun search(query: String, provider: Provider): List<Show> = withContext(Dispatchers.IO) {
         val q = query.trim()
         require(q.isNotEmpty()) { "Enter a series name or series URL" }
+        if (provider == Provider.KIMCARTOON && q.startsWith("https://")) return@withContext listOf(KimCartoon.show(q))
         if (provider == Provider.ANIMEFREAK && q.startsWith("https://")) {
             val url = AnimeFreak.seriesUrl(q)
             val series = AnimeFreak.load(url)
@@ -59,7 +61,8 @@ object WatchCatalog {
             if (local.isNotEmpty()) return@withContext local.sortedBy { it.title }.take(150)
         }
         val encoded = URLEncoder.encode(q, Charsets.UTF_8)
-        val url = if (provider == Provider.ANIMEFREAK) "https://animefreak.it.com/search?keyword=$encoded"
+        val url = if (provider == Provider.KIMCARTOON) "https://kimcartoon.com.co/?s=$encoded"
+            else if (provider == Provider.ANIMEFREAK) "https://animefreak.it.com/search?keyword=$encoded"
             else if (provider == Provider.HIANIME) "https://hianime.ms/search?q=$encoded"
             else "".slugToLink().trimEnd('/') + "/search"
         val html = if (provider == Provider.WCO) searchWco(q, url) else read(url, provider)
@@ -93,6 +96,7 @@ object WatchCatalog {
     private fun sameHost(a: String?, b: String?) = a?.removePrefix("www.") == b?.removePrefix("www.")
 
     @JvmStatic fun parseSearch(html: String, base: String, provider: Provider): List<Show> {
+        if (provider == Provider.KIMCARTOON) return KimCartoon.parseSearch(html, base)
         val doc = Jsoup.parse(html, base)
         if (provider == Provider.ANIMEFREAK) doc.select("#sidebar, .sidebar").remove()
         return doc.select("a[href]").mapNotNull { a ->
@@ -157,6 +161,7 @@ object WatchCatalog {
     }
 
     @JvmStatic fun parseEpisodes(html: String, base: String, provider: Provider): List<Entry> {
+        if (provider == Provider.KIMCARTOON) return KimCartoon.parseEpisodes(html, base)
         val doc = Jsoup.parse(html, base)
         if (provider == Provider.ANIMEFREAK) {
             val series = AnimeFreak.parseSeries(html, base)

@@ -186,6 +186,7 @@ class VideoDownloadData(
     }
 
     fun message(s: String) {
+        Core.child.downloadThread.preparationStatus(queue.episode.slug, s)
         FrogLog.message("$tag $s")
     }
 

@@ -91,6 +91,9 @@ class FollowSeriesView : ViewPage {
                                             IconButton(onClick = { FollowSeries.toggle(follow.show) }) { Icon(EvaIcons.Fill.Bookmark, "Unfollow", tint = MaterialTheme.colorScheme.primary) }
                                         }
                                         Button(onClick = { Core.changePage(Page.WATCH); Core.watchView.openShow(follow.show) }) { Text("Watch") }
+                                        if (follow.show.provider == WatchCatalog.Provider.KIMCARTOON) OutlinedButton(onClick = {
+                                            Core.changePage(Page.DOWNLOADER); Core.downloaderView.openKimCartoon(follow.show)
+                                        }) { Text("Download") }
                                         if (isWco) OutlinedButton(onClick = { Core.openSeriesDetails(WatchCatalog.slug(follow.show.url), windowScope) }) { Text("Download") }
                                         if (follow.unread.isNotEmpty()) TextButton(onClick = { FollowSeries.markSeen(follow.show) }) { Text("Mark seen") }
                                         TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "Less" else "Details") }

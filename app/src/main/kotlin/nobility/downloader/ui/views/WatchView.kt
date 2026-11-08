@@ -33,6 +33,7 @@ class WatchView : ViewPage {
     private var listing by mutableStateOf<WatchCatalog.Listing?>(null)
     private var filter by mutableStateOf("")
     private var language by mutableStateOf("All")
+    private var includeKimSubtitles by mutableStateOf(true)
     private var quality by mutableStateOf(Quality.MED)
     private var status by mutableStateOf("Search for a series, choose an episode, and press Play.")
     private var error by mutableStateOf(false)
@@ -144,6 +145,9 @@ class WatchView : ViewPage {
                     if (show != null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(show.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                            if (show.provider == WatchCatalog.Provider.KIMCARTOON) TextButton(enabled = !busy, onClick = {
+                                nobility.downloader.core.scraper.ProviderFavorites.toggle(show)
+                            }) { Text(if (nobility.downloader.core.scraper.ProviderFavorites.contains(show)) "★ Favorited" else "☆ Favorite") }
                             TextButton(enabled = !busy, onClick = { nobility.downloader.core.scraper.FollowSeries.toggle(show, listing?.entries.orEmpty()) }) {
                                 Text(if (nobility.downloader.core.scraper.FollowSeries.isFollowing(show)) "Unfollow" else "Follow")
                             }
@@ -159,8 +163,15 @@ class WatchView : ViewPage {
                             }
                             if (show.provider == WatchCatalog.Provider.ANIMEFREAK) Text("Source quality")
                             else Quality.entries.forEach { q ->
-                                FilterChip(quality == q, { quality = q }, label = { Text(q.tag) })
+                                FilterChip(quality == q, { quality = q }, label = { Text(if (show.provider == WatchCatalog.Provider.KIMCARTOON && q == Quality.LOW) "360p" else q.tag) })
                             }
+                        }
+                        if (show.provider == WatchCatalog.Provider.KIMCARTOON) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(includeKimSubtitles, { includeKimSubtitles = it }, enabled = !busy)
+                                Text("Include English subtitles in downloads")
+                            }
+                            Text("Sub/dub buttons are supplied by the site; some files may be unavailable.", style = MaterialTheme.typography.bodySmall)
                         }
                         val entries = listing?.entries.orEmpty().filter {
                             it.title.contains(filter, true) && (language == "All" ||
@@ -180,6 +191,16 @@ class WatchView : ViewPage {
                                             status = "${VideoPlayer.playerForSetting()} started for ${entry.title}."
                                         }
                                     }) { Text("Play") }
+                                    if (show.provider == WatchCatalog.Provider.KIMCARTOON) TextButton(enabled = !busy, onClick = {
+                                        runTask {
+                                            val downloadRequest = sequence
+                                            val output = nobility.downloader.core.scraper.KimCartoon.download(show, entry, quality,
+                                                java.io.File(Defaults.SAVE_FOLDER.string()), includeKimSubtitles) { message ->
+                                                withContext(Dispatchers.Main) { if (sequence == downloadRequest) status = message }
+                                            }
+                                            status = "Saved ${output.name}"
+                                        }
+                                    }) { Text("Download") }
                                     if (show.provider == WatchCatalog.Provider.ANIMEFREAK) TextButton(enabled = !busy, onClick = {
                                         runTask {
                                             val episode = nobility.downloader.core.scraper.AnimeFreak.Episode(entry.url.trimEnd('/').substringAfterLast('/').toInt(), entry.url)

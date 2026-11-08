@@ -11,11 +11,13 @@ import java.io.IOException
 @Suppress("UNUSED")
 object PlayVideoWithVLC {
 
+    @JvmOverloads
     fun play(
         videoUrl: String,
         userAgent: String,
         referrer: String,
-        onStarted: (Process) -> Unit = {}
+        onStarted: (Process) -> Unit = {},
+        subtitle: java.io.File? = null
     ): Resource<Boolean> {
 
         val vlcPath = findVlcPath()
@@ -24,7 +26,7 @@ object PlayVideoWithVLC {
             return Resource.Error("VLC was not found. Install VLC or set its executable path in Settings.")
         }
 
-        val command = listOf(
+        val command = mutableListOf(
             vlcPath,
             "--no-one-instance",
             "--http-user-agent=$userAgent",
@@ -37,6 +39,7 @@ object PlayVideoWithVLC {
             videoUrl
         )
 
+        if (subtitle != null) command.add(1, "--sub-file=${subtitle.absolutePath}")
         return try {
             val process = ProcessBuilder(command).inheritIO().start()
             if (process.waitFor(750, java.util.concurrent.TimeUnit.MILLISECONDS)) {

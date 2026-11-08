@@ -110,6 +110,10 @@ class SettingsView : ViewPage {
                     Text("ZenDownloader reMaster ${AppInfo.VERSION} • Amaster15/ZenDownloader-reMaster", style = MaterialTheme.typography.bodySmall)
                     androidx.compose.material3.TextButton(onClick = { Core.openUpdate() }) {
                         Text("Check for updates")
+                        nobility.downloader.ui.components.UpdateIndicator()
+                    }
+                    nobility.downloader.core.updates.AppUpdateStatus.availableVersion?.let { version ->
+                        Text("Version $version is available", color = MaterialTheme.colorScheme.error)
                     }
                     Text("Download updates here, then install and restart. Your settings and library are kept.", style = MaterialTheme.typography.bodySmall)
                     Spacer(Modifier.height(12.dp))
