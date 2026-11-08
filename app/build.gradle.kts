@@ -30,7 +30,7 @@ kotlin {
 }
 
 group = "nobility.downloader"
-version = "1.4.3"
+version = "1.4.4"
 
 repositories {
     maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")

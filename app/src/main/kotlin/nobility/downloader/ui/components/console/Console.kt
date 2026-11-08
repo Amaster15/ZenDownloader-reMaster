@@ -59,6 +59,7 @@ class Console(
         windowScope: AppWindowScope,
         modifier: Modifier = Modifier,
         popoutMode: Boolean = false,
+        toolbarActions: @Composable () -> Unit = {},
     ) {
 
         val scrollState = rememberScrollState(consoleState.lineCount)
@@ -100,6 +101,7 @@ class Console(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         modifier = Modifier.align(Alignment.End)
                     ) {
+                        toolbarActions()
                         if ((!popoutMode && !consoleState.consolePoppedOut) || popoutMode) {
                             TooltipIconButton(
                                 "Copy Console Text",

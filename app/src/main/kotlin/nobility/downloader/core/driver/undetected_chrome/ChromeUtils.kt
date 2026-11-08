@@ -36,6 +36,7 @@ object ChromeUtils {
     }
 
     fun chromePath(): String {
+        nobility.downloader.core.driver.ManagedBrowser.browserPath().takeIf { it.isNotBlank() }?.let { return it }
         var chromeDataPath = ""
         val isPosix = isMacOs || isLinux
         val possibles = mutableSetOf<String>()

@@ -22,8 +22,13 @@ readme = '''ZenDownloader-reMaster {version}
 Extract the entire ZIP before running. Keep app, runtime, and launcher.jar together.
 Windows x64: double-click run.bat.
 Linux x64: run chmod +x run.sh, then ./run.sh.
-Java 21 is included. Install Google Chrome or Chromium separately.
-FFmpeg/FFplay can be installed from the app or supplied in ~/.zen_database.
+Java 21 is included. On first launch, the app automatically downloads a private
+Chrome for Testing browser and matching driver from Google into ~/.zen_database/browser.
+Missing FFmpeg/FFplay tools are downloaded from Tyrrrz/FFmpegBin into ~/.zen_database.
+Internet access is required for first-time setup; progress appears in the app.
+No separate Java or browser installation is required on Windows/Linux x64.
+Linux requires the standard desktop libraries used by Chrome and FFplay.
+VLC and MPV are optional external players; FFplay is prepared automatically.
 Settings and download history are stored in your user profile, outside this folder.
 
 WCO retries default to 30 attempts after the initial attempt, 30 seconds apart.

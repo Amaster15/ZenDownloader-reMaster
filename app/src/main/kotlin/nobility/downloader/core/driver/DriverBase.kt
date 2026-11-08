@@ -32,7 +32,7 @@ abstract class DriverBase(
     private val chromeOptions = ChromeOptions()
     private var nDriver: WebDriver? = null
     private var setupFailure: Exception? = null
-    val driver get() = nDriver ?: throw IllegalStateException("Chrome setup failed. Check the browser and driver versions.", setupFailure)
+    val driver get() = nDriver ?: throw BrowserStartupException("Browser could not start: ${setupFailure?.message ?: "session unavailable"}", setupFailure)
     val undriver get() = driver as UndetectedChromeDriver
     private var isSetup = false
     private val headless = headless ?: Defaults.HEADLESS_MODE.boolean()
@@ -87,7 +87,7 @@ abstract class DriverBase(
     suspend fun waitForSetup() {
         var checks = 0
         while (!isSetup) {
-            setupFailure?.let { throw IllegalStateException("Chrome setup failed.", it) }
+            setupFailure?.let { throw BrowserStartupException("Browser could not start: ${it.message}", it) }
             delay(500)
             checks++
             if (checks >= 250) {

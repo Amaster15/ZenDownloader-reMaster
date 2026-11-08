@@ -156,6 +156,7 @@ class VideoDownloadHandler(
             if (m3U8Data == null) {
                 val retriesBeforePage = data.retries
                 var pageAttempt = 0
+                var browserStartupFailed = false
                 parsedResult = PageLinkRetry.run(
                     retries = Defaults.PAGE_LINK_RETRIES.int().coerceIn(1, 100),
                     delaySeconds = Defaults.PAGE_LINK_RETRY_DELAY_SECONDS.int().coerceIn(1, 100),
@@ -171,11 +172,15 @@ class VideoDownloadHandler(
                             help.parseQualities(slug)
                         } catch (e: CancellationException) {
                             throw e
+                        } catch (e: nobility.downloader.core.driver.BrowserStartupException) {
+                            browserStartupFailed = true
+                            data.message("${e.message}. Open Error Console for details; page retries cannot repair browser startup.")
+                            Resource.Error(e.message.orEmpty(), e)
                         } catch (e: Exception) {
                             Resource.Error("Player/link resolution failed: ${e.message ?: e.javaClass.simpleName}", e)
                         }
                     },
-                    shouldRetry = { it.isFailed && it.errorCode != ErrorCode.FFMPEG_NOT_INSTALLED.code },
+                    shouldRetry = { !browserStartupFailed && it.isFailed && it.errorCode != ErrorCode.FFMPEG_NOT_INSTALLED.code },
                     onRetry = { retry, total, seconds ->
                         data.downloadDatas.clear()
                         data.message("No video link found. Page retry $retry of $total in $seconds seconds.")

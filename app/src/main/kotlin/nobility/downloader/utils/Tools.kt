@@ -599,7 +599,8 @@ object Tools {
         ZipInputStream(Files.newInputStream(source.toPath())).use { zis ->
             var entry = zis.nextEntry
             while (entry != null) {
-                val newFile = outputDir.toPath().resolve(entry.name)
+                val newFile = outputDir.toPath().toAbsolutePath().resolve(entry.name).normalize()
+                require(newFile.startsWith(outputDir.toPath().toAbsolutePath().normalize())) { "Invalid archive path" }
                 if (entry.isDirectory) {
                     Files.createDirectories(newFile)
                 } else {

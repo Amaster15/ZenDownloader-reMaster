@@ -22,7 +22,16 @@ class DownloaderView : ViewPage {
     )
     @Composable override fun Ui(windowScope: AppWindowScope) {
         Column(Modifier.fillMaxSize().padding(16.dp)) {
-            Core.console.ConsoleTextField(windowScope, modifier = Modifier.fillMaxSize())
+            Core.console.ConsoleTextField(windowScope, modifier = Modifier.fillMaxSize(), toolbarActions = {
+                OutlinedButton(
+                    enabled = Core.child.hasActiveDownloads,
+                    onClick = {
+                        DirectDownloads.cancel()
+                        Core.child.stop()
+                        windowScope.showToast("All downloads have been stopped.")
+                    }
+                ) { Text("Stop") }
+            })
         }
     }
 }

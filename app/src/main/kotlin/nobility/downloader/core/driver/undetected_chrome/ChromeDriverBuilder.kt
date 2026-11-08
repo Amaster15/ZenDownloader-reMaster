@@ -78,8 +78,8 @@ class ChromeDriverBuilder {
         buildPatcher(driverExecutablePath)
         var mOptions = options
         mOptions = setHostAndPort(mOptions)
-        mOptions = setUserDataDir(mOptions)
         mOptions = setBinaryLocation(mOptions, binaryLocation)
+        mOptions = setUserDataDir(mOptions)
         mOptions = setHeadless(mOptions, headless)
         prefs?.let {
             handlePrefs(userDataDir, it)
@@ -177,12 +177,20 @@ class ChromeDriverBuilder {
             //no user data dir in it
             keepUserDataDir = false
             try {
-                userDataDir = AppInfo.databasePath + "udc_temp" +
+                val profileRoot = if (this.binaryLocation.startsWith("/snap/")) {
+                    File(System.getProperty("user.home"), "snap/chromium/common/zen-profiles").path
+                } else {
+                    File(AppInfo.databasePath, "udc_temp").path
+                }
+                userDataDir = profileRoot +
                         File.separator +
                         "udc_${Uuid.random().toString().fixForFiles()}" +
                         File.separator
             } catch (_: Exception) {
                 throw RuntimeException("Failed to create temp user data directory.")
+            }
+            check(File(userDataDir).mkdirs() || File(userDataDir).isDirectory) {
+                "Cannot create browser profile: $userDataDir"
             }
             chromeOptions.addArguments("--user-data-dir=$userDataDir")
         } else {
@@ -354,7 +362,22 @@ class ChromeDriverBuilder {
             throw Exception("Failed to load internal chrome options.")
         }
         args.add(0, binaryLocation)
-        return ProcessBuilder(args).start()
+        val log = File(userDataDir, "zen-browser-startup.log")
+        val process = ProcessBuilder(args).redirectErrorStream(true).redirectOutput(log).start()
+        chromeProcess = process
+        val deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(30)
+        while (System.nanoTime() < deadline && process.isAlive) {
+            try {
+                val connection = java.net.URI("http://127.0.0.1:$debugPort/json/version").toURL().openConnection()
+                connection.connectTimeout = 500
+                connection.readTimeout = 500
+                val response = connection.getInputStream().bufferedReader().use { it.readText() }
+                if (response.contains("webSocketDebuggerUrl")) return process
+            } catch (_: java.io.IOException) { }
+            Thread.sleep(100)
+        }
+        val detail = if (process.isAlive) "startup timed out" else "exited with code ${process.exitValue()}"
+        throw IllegalStateException("Browser $detail ($binaryLocation). Startup log: ${log.absolutePath}")
     }
 
     private fun findFreePort(): Int {

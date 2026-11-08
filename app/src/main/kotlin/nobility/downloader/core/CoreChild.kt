@@ -68,16 +68,19 @@ class CoreChild {
             } catch (e: Exception) {
                 FrogLog.error("Failed to prepare a matching ChromeDriver.", e)
             }
-            launch {
-                downloadThread.run()
-            }
             val ffSetFound = Tools.ffSetFound()
             if (!ffSetFound) {
                 FrogLog.message(
-                    "FFmpeg or FFplay wasn't found. Opening downloader."
+                    "Preparing FFmpeg and FFplay automatically…"
                 )
-                Core.openFfsetDownloaderWindow()
+                val mediaSetup = nobility.downloader.ui.windows.FFSetDownloaderWindow().downloadLatestFFmpeg()
+                if (mediaSetup.isFailed) {
+                    FrogLog.error("Automatic FFmpeg/FFplay setup failed: ${mediaSetup.message}. Retry from Settings.")
+                } else {
+                    FrogLog.message("FFmpeg and FFplay are ready.")
+                }
             }
+            launch { downloadThread.run() }
             val result = ImageUpdateChecker.check()
             if (result.data == true) {
                 FrogLog.message(
@@ -365,8 +368,8 @@ class CoreChild {
         if (!ChromeUtils.isChromeInstalled()) {
             showError(
                 """
-                    Chrome isn't installed. Install it and restart the app.
-                    For some help visit: https://github.com/NobilityDeviant/ZenDownloader/#download--install
+                    The private browser is still being prepared or setup failed.
+                    Check In progress / Error Console for setup status, then try again.
                 """.trimIndent()
             )
             return false

@@ -8,8 +8,8 @@ A desktop downloader built with Kotlin and Jetpack Compose, with updated WCO pla
 
 Release packages are available for **Windows x64** and **Linux x64**. Both include Java 21; no separate Java installation is needed when using the ZIP packages.
 
-- Install Chrome or Chromium separately.
-- FFmpeg is required for HLS video processing and HiAnime downloads. The app can download FFmpeg and FFplay when needed.
+- On first launch, the app downloads a private Chrome for Testing browser and matching driver from Google into `~/.zen_database/browser`. No separate browser installation is needed on Windows/Linux x64.
+- FFmpeg is required for HLS video processing and HiAnime downloads. Missing FFmpeg and FFplay are downloaded automatically from the Tyrrrz/FFmpegBin binary distribution into `~/.zen_database`. First-time setup requires internet access; status appears in the activity console. Linux still requires standard desktop system libraries.
 - macOS and ARM packages are not currently provided by this fork.
 - Linux startup has been tested. The Windows package is cross-built and checked for required files; Windows GUI testing is still pending.
 
@@ -115,7 +115,7 @@ FFmpeg merges video/audio and converts supported streams to MP4. FFplay is used 
 
 ## Browser setup and troubleshooting
 
-The app attempts to match ChromeDriver to the installed browser. If browser setup fails, set **Chrome Browser Path** and **Chrome Driver Path** in Settings to compatible browser and driver executables.
+The app uses its private, matching Chrome for Testing and ChromeDriver pair by default. If browser setup fails, set **Chrome Browser Path** and **Chrome Driver Path** in Settings to compatible browser and driver executables.
 
 - **Player timeout:** check the console for the failed stage and adjust Timeout in Settings if needed.
 - **Server full or link unavailable:** let the configured retries run; availability depends on the source site.

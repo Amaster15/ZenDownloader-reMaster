@@ -8,7 +8,13 @@ import java.util.concurrent.TimeUnit
 
 /** Resolve a driver for the browser we actually launch, including distro Chromium. */
 object BrowserDriverSetup {
-    fun setup(browserPath: String = ChromeUtils.chromePath()): String {
+    @Synchronized
+    fun setup(browserPath: String = ""): String {
+        if (browserPath.isBlank()) {
+            val pair = ManagedBrowser.ensure()
+            System.setProperty("webdriver.chrome.driver", pair.second.absolutePath)
+            return pair.second.absolutePath
+        }
         require(browserPath.isNotBlank()) { "Chrome or Chromium was not found." }
         val browserVersion = versionOf(File(browserPath))
             ?: error("Unable to determine browser version: $browserPath")
