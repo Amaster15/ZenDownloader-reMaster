@@ -8,7 +8,7 @@ public class PageLinkRetryTest {
    () -> ticks.get()<stopAt,
    cont -> attempts.incrementAndGet(),
    value -> value<successAt,
-   (retry,total,seconds) -> {if(retry!=notices.incrementAndGet()||total!=5||seconds!=30)throw new AssertionError();return Unit.INSTANCE;},
+   (retry,total,seconds) -> {int notice=notices.getAndIncrement();if(retry!=notice/30+1||total!=5||seconds!=30-notice%30)throw new AssertionError();return Unit.INSTANCE;},
    (millis,cont) -> {if(millis!=1000L)throw new AssertionError();ticks.incrementAndGet();return Unit.INSTANCE;},c));
   if(attempts.get()!=expectedAttempts||ticks.get()*1000L!=expectedWait)throw new AssertionError("attempts="+attempts+" ticks="+ticks);
   if(stopAt!=Integer.MAX_VALUE&&result!=null)throw new AssertionError("Stop must return null");

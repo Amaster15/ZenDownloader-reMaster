@@ -207,6 +207,7 @@ class VideoDownloadData(
         e: Throwable?,
         important: Boolean = false
     ) {
+        this.message("Error: ${message.orEmpty()} ${e?.message.orEmpty()}")
         FrogLog.error(
             "$tag $message",
             e,
@@ -219,6 +220,7 @@ class VideoDownloadData(
         errorMessage: String? = null,
         important: Boolean = false
     ) {
+        this.message("Error: $message ${errorMessage.orEmpty()}")
         FrogLog.error(
             "$tag $message",
             errorMessage,

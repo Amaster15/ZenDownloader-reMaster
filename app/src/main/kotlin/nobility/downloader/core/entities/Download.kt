@@ -125,6 +125,7 @@ data class Download(
 
     val isComplete: Boolean
         get() {
+            if (downloading || queued) return false
             if (fileSize <= 5000) {
                 return false
             }

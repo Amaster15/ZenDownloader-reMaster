@@ -237,7 +237,7 @@ private fun UiWrapper(
                                 ) { page ->
                                     val count = when(page) {
                                         Page.FOLLOW -> nobility.downloader.core.scraper.FollowSeries.unreadCount
-                                        Page.DOWNLOADER -> Core.child.downloadThread.downloadsInQueue.value
+                                        Page.DOWNLOADER -> Core.child.downloadThread.downloadsInQueue.value + Core.child.downloadThread.downloadsInProgress.value + nobility.downloader.ui.views.DirectDownloads.pendingCount
                                         else -> 0
                                     }
                                     FilterChip(selected = Core.currentPage.mainPage == page,

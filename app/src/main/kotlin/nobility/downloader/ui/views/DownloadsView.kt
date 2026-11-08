@@ -117,10 +117,8 @@ class DownloadsView : ViewPage {
                             textAlign = TextAlign.Center,
                             textDecoration = TextDecoration.Underline,
                             modifier = Modifier.multiClickable {
-                                Core.openSeriesDetails(
-                                    download.seriesSlug,
-                                    windowScope
-                                )
+                                if (download.slug.startsWith("https://")) DirectDownloads.openLink(download.slug.substringBefore('|'))
+                                else Core.openSeriesDetails(download.seriesSlug, windowScope)
                             }.pointerHoverIcon(PointerIcon.Hand)
                         )
                     },
@@ -206,19 +204,15 @@ class DownloadsView : ViewPage {
                             EvaIcons.Fill.Download,
                             !download.isComplete && !download.downloading
                         ) {
-                            Core.openSeriesDetails(
-                                download.slug,
-                                windowScope
-                            )
+                            if (download.slug.startsWith("https://")) DirectDownloads.openLink(download.slug.substringBefore('|'))
+                            else Core.openSeriesDetails(download.slug, windowScope)
                         },
                         DropdownOption(
                             "Download",
                             EvaIcons.Fill.Info
                         ) {
-                            Core.openSeriesDetails(
-                                download.seriesSlug,
-                                windowScope
-                            )
+                            if (download.slug.startsWith("https://")) DirectDownloads.openLink(download.slug.substringBefore('|'))
+                            else Core.openSeriesDetails(download.seriesSlug, windowScope)
                         },
                         DropdownOption(
                             "Open Folder",
@@ -330,8 +324,9 @@ class DownloadsView : ViewPage {
             OverflowOption(
                 EvaIcons.Fill.Close,
                 "Stop Downloads",
-                visible = Core.child.isRunning
+                visible = Core.child.hasActiveDownloads
             ) {
+                DirectDownloads.cancel()
                 Core.child.stop()
                 ApplicationState.showToastForMain("All downloads have been stopped.")
             },
@@ -342,7 +337,7 @@ class DownloadsView : ViewPage {
                 if (Core.child.downloadList.isEmpty()) {
                     return@OverflowOption
                 }
-                if (!Core.child.isRunning) {
+                if (!Core.child.hasActiveDownloads) {
                     DialogHelper.showConfirm(
                         """
                                      Are you sure you want to clear all downloads?
@@ -373,7 +368,7 @@ class DownloadsView : ViewPage {
                 if (Core.child.downloadList.isEmpty()) {
                     return@OverflowOption
                 }
-                if (!Core.child.isRunning) {
+                if (!Core.child.hasActiveDownloads) {
                     DialogHelper.showConfirm(
                         """
                                     Are you sure you want to clear all downloads?

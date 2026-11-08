@@ -114,25 +114,35 @@ class DownloadThread {
             return
         }
         preparationStatus(nextDownload.episode.slug, if (fallback) "Resolving HiAnime video link" else "Resolving video link")
+        FrogLog.message("[S] [${nextDownload.episode.name}] Starting ${if (fallback) "HiAnime fallback" else "WCO download"}.")
         currentJobs.incrementAndGet()
         scope.launch(Dispatchers.IO) {
-            val downloader = VideoDownloadHandler(
-                nextDownload,
-                nextDownload.quality
-            )
+            var downloader: VideoDownloadHandler? = null
+            var failure: String? = null
             try {
+                downloader = VideoDownloadHandler(nextDownload, nextDownload.quality)
                 if (fallback) downloader.runHiAnime() else downloader.run()
+            } catch (e: CancellationException) {
+                failure = "Cancelled"
+                throw e
             } catch (e: Exception) {
+                failure = "Failed: ${e.message ?: e.javaClass.simpleName}"
+                FrogLog.message("[S] [${nextDownload.episode.name}] $failure")
                 FrogLog.error(
                     "Failed to finish download.",
                     e
                 )
             } finally {
-                preparationStatus(nextDownload.episode.slug,
-                    if (!Core.child.isRunning) "Stopped" else if (isDeferred(nextDownload.episode.slug))
-                        "Waiting for HiAnime fallback" else "Finished attempt — see Error Console if no file was downloaded")
-                downloader.killDriver()
-                currentJobs.decrementAndGet()
+                val lastStatus = preparation[nextDownload.episode.slug]?.downloadProgress?.value.orEmpty()
+                val finalStatus = when {
+                    !Core.child.isRunning -> "Stopped"
+                    isDeferred(nextDownload.episode.slug) -> "Waiting for HiAnime fallback"
+                    failure != null -> failure!!
+                    else -> lastStatus.ifBlank { "Attempt ended without a video file" }
+                }
+                preparationStatus(nextDownload.episode.slug, finalStatus)
+                FrogLog.message("[S] [${nextDownload.episode.name}] $finalStatus")
+                try { downloader?.killDriver() } finally { currentJobs.decrementAndGet() }
             }
         }
     }
@@ -234,9 +244,14 @@ class DownloadThread {
         }
     }
 
+    @JvmOverloads
     @Synchronized
-    fun clear() {
-        preparation.clear()
+    fun clear(preserveStatus: Boolean = false) {
+        if (!preserveStatus) preparation.clear()
+        else {
+            downloadQueue.forEach { preparationStatus(it.episode.slug, "Stopped before starting") }
+            hiAnimeQueue.values.forEach { preparationStatus(it.episode.slug, "Fallback stopped before starting") }
+        }
         downloadQueue.clear()
         hiAnimeQueue.clear()
         synchronizeDownloadsInQueue()

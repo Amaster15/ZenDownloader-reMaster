@@ -14,6 +14,14 @@ public class ConsoleCountdownTest {
   if(state.getLineCount()!=4||!state.getConsoleText().contains("11 seconds elapsed"))throw new AssertionError("Elapsed fallback must update");
   state.clear();line(state,"[Episode 1] Player popup: 5 seconds remaining before Close.");
   if(state.getLineCount()!=1)throw new AssertionError("Clear must reset timers");
+  state.clear();
+  line(state,"[Episode 1] No video link found. Page retry 1 of 30 in 30 seconds.");
+  line(state,"[Episode 2] No video link found. Page retry 1 of 30 in 30 seconds.");
+  line(state,"[Episode 1] No video link found. Page retry 1 of 30 in 29 seconds.");
+  if(state.getLineCount()!=2||!state.getConsoleText().contains("29 seconds"))throw new AssertionError("Retry countdown must update its own row");
+  line(state,"[Episode 1] Resolving video link: attempt 2 of 31.");
+  line(state,"[Episode 1] No video link found. Page retry 2 of 30 in 30 seconds.");
+  if(state.getLineCount()!=4)throw new AssertionError("New retry must retain prior attempt");
   System.out.println("PASS: countdown replacement, interleaved episodes, new attempts, elapsed timer and clear");
  }
 }

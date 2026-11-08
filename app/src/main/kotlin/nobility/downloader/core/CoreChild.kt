@@ -138,10 +138,13 @@ class CoreChild {
         Core.startButtonEnabled = true
         Core.stopButtonEnabled = false
         isRunning = false
-        downloadThread.clear()
+        downloadThread.clear(preserveStatus = true)
         downloadThread.downloadsInProgress.value = 0
         downloadThread.synchronizeDownloadsInQueue()
     }
+
+    val hasActiveDownloads: Boolean get() = isRunning ||
+        nobility.downloader.ui.views.DirectDownloads.isBusy || downloadList.any { it.downloading || it.queued }
 
     @OptIn(DelicateCoroutinesApi::class)
     fun shutdown(update: Boolean = false) {
@@ -154,7 +157,7 @@ class CoreChild {
             GlobalScope.launch { killAllDrivers(true) }
             return
         }
-        if (isRunning) {
+        if (hasActiveDownloads) {
             DialogHelper.showConfirm(
                 """
                     You are currently downloading videos.

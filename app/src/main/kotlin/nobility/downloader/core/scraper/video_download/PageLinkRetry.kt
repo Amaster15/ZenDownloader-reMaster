@@ -24,10 +24,10 @@ object PageLinkRetry {
             if (!running()) return null
             val result = attempt()
             if (!shouldRetry(result) || index == retries) return result
-            onRetry(index + 1, retries, delaySeconds)
             // Check Stop each second while retaining coroutine cancellation support.
-            repeat(delaySeconds) {
+            repeat(delaySeconds) { elapsed ->
                 if (!running()) return null
+                onRetry(index + 1, retries, delaySeconds - elapsed)
                 pause(1000L)
             }
         }

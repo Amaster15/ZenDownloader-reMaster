@@ -37,7 +37,15 @@ object DirectDownloads {
     private var language by mutableStateOf("sub")
     private var job: Job? = null
     fun cancel() { job?.cancel() }
+    fun openLink(url: String) {
+        Core.changePage(Page.DIRECT_LINK)
+        if (!busy) { input = url; show = null; entries = emptyList(); selected.clear() }
+    }
     val isBusy get() = busy
+    val pendingCount: Int get() = if (!busy) 0 else Core.child.downloadList.count {
+        it.downloadProgress.value
+        it.slug.startsWith("https://") && (it.queued || it.downloading)
+    }
     private fun key(e: WatchCatalog.Entry) = e.url + "|" + e.language
     private fun report(text: String) { status = text; FrogLog.message(text) }
     private fun task(action: suspend () -> Unit) {
@@ -49,6 +57,11 @@ object DirectDownloads {
             catch (e: Exception) { report("Direct download: ${e.message}") }
             finally { busy = false }
         }
+    }
+    fun startEpisode(value: WatchCatalog.Show, entry: WatchCatalog.Entry, requested: Quality, captions: Boolean) {
+        if (busy) return
+        quality = requested; subtitles = captions
+        task { download(value, listOf(entry)) }
     }
     fun open(value: WatchCatalog.Show) {
         Core.changePage(Page.DIRECT_LINK)
@@ -95,32 +108,48 @@ object DirectDownloads {
         val folderPath = Defaults.SAVE_FOLDER.string()
         require(folderPath.isNotBlank()) { "Choose a download folder in Settings." }
         val folder = File(folderPath)
-        require(folder.path.isNotBlank()) { "Choose a download folder in Settings." }
+        require((folder.isDirectory || folder.mkdirs()) && folder.canWrite()) { "The download folder is not writable." }
         val q = quality; val captions = subtitles
         Core.changePage(Page.DOWNLOADER)
         var done = 0
-        for (entry in chosen) {
-            currentCoroutineContext().ensureActive()
+        var skipped = 0
+        var failed = 0
+        val planned = chosen.map { entry ->
             val filename = when (value.provider) {
                 WatchCatalog.Provider.KIMCARTOON -> KimCartoon.filename(value, entry)
                 WatchCatalog.Provider.ANIMEFREAK -> AnimeFreak.filename(AnimeFreak.Series(value.title, emptyList()), AnimeFreak.Episode(URI(entry.url).path.trimEnd('/').substringAfterLast('/').toInt(), entry.url))
                 else -> EpisodeNaming.downloadFilename(entry.title, entry.url, value.title, false).replace(Regex("[\\\\/:*?\"<>|]"), "_") + " - ${entry.language.uppercase()}.mp4"
             }
             val output = File(folder, filename)
-            var record = Download(output.absolutePath, System.currentTimeMillis(), q.resolution).apply {
+            entry to output
+        }
+        val batch = planned.map { (entry, output) ->
+            val filename = output.name
+            val candidate = Download(output.absolutePath, System.currentTimeMillis(), q.resolution).apply {
                 name = filename.removeSuffix(".mp4"); slug = key(entry); seriesSlug = value.title
                 queued = true
             }
-            Core.child.addDownload(record)
-            record = Core.child.downloadList.first { it.matches(record) }
+            val existing = Core.child.downloadList.firstOrNull { it.matches(candidate) && it.downloadPath == output.absolutePath }
+            val record = existing ?: candidate.also { Core.child.addDownload(it) }
+            record.queued = true
+            record.setProgress("Queued")
+            Triple(entry, output, record)
+        }
+        try {
+        for ((entry, output, record) in batch) {
+            currentCoroutineContext().ensureActive()
             if (output.exists()) {
-                record.fileSize = output.length(); record.queued = false; record.update()
+                record.queued = false
+                if (record.isComplete) record.update() else { record.fileSize = 0; record.setProgress("Existing file — not verified; left unchanged"); record.update(false) }
                 report("${value.title}: ${entry.title} already exists; skipped.")
+                skipped++
                 continue
             }
-            record.queued = false; record.downloading = true; record.manualProgress = true
+            record.queued = false; record.fileSize = 0; record.downloading = true; record.manualProgress = true
+            var acceptingProgress = true
             var lastLog = 0L
             fun updateProgress(text: String) {
+                if (!acceptingProgress) return
                 record.setProgress(text)
                 val now = System.currentTimeMillis()
                 if (now - lastLog >= 10000) {
@@ -151,16 +180,29 @@ object DirectDownloads {
                     }
                     else -> error("Use the WCO queue")
                 }
+                require(output.isFile && output.length() > 5000) { "No complete video was produced" }
+                acceptingProgress = false
                 record.fileSize = output.length(); record.downloading = false; record.manualProgress = false; record.update()
                 report("Downloaded ${output.name}"); done++
             } catch (e: CancellationException) {
+                acceptingProgress = false
                 record.downloading = false; record.setProgress("Cancelled"); record.update(false); throw e
             } catch (e: Exception) {
+                acceptingProgress = false; failed++
                 record.downloading = false; record.setProgress("Failed: ${e.message}"); record.update(false)
                 report("Failed ${entry.title}: ${e.message}")
             }
         }
-        report("Finished: $done of ${chosen.size} downloaded.")
+        } finally {
+            batch.forEach { (_, _, record) ->
+                if (record.queued) {
+                    record.queued = false
+                    record.setProgress("Cancelled before starting")
+                    record.update(false)
+                }
+            }
+        }
+        report("Finished: $done downloaded, $skipped existing files skipped, $failed failed.")
     }
     @OptIn(ExperimentalLayoutApi::class)
     @Composable fun Ui() {

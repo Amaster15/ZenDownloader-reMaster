@@ -191,30 +191,11 @@ class WatchView : ViewPage {
                                             status = "${VideoPlayer.playerForSetting()} started for ${entry.title}."
                                         }
                                     }) { Text("Play") }
-                                    if (show.provider == WatchCatalog.Provider.KIMCARTOON) TextButton(enabled = !busy, onClick = {
-                                        runTask {
-                                            val downloadRequest = sequence
-                                            val output = nobility.downloader.core.scraper.KimCartoon.download(show, entry, quality,
-                                                java.io.File(Defaults.SAVE_FOLDER.string()), includeKimSubtitles) { message ->
-                                                withContext(Dispatchers.Main) { if (sequence == downloadRequest) status = message }
-                                            }
-                                            status = "Saved ${output.name}"
-                                        }
-                                    }) { Text("Download") }
-                                    if (show.provider == WatchCatalog.Provider.ANIMEFREAK) TextButton(enabled = !busy, onClick = {
-                                        runTask {
-                                            val episode = nobility.downloader.core.scraper.AnimeFreak.Episode(entry.url.trimEnd('/').substringAfterLast('/').toInt(), entry.url)
-                                            val series = nobility.downloader.core.scraper.AnimeFreak.Series(show.title, listOf(episode))
-                                            val downloadRequest = sequence
-                                            val output = java.io.File(Defaults.SAVE_FOLDER.string(), nobility.downloader.core.scraper.AnimeFreak.filename(series, episode))
-                                            status = "Resolving AnimeFreak download…"
-                                            val stream = nobility.downloader.core.scraper.AnimeFreak.resolve(episode)
-                                            nobility.downloader.core.scraper.AnimeFreak.download(stream, output) { message ->
-                                                Core.taskScope.launch(Dispatchers.Main) { if (sequence == downloadRequest) status = message }
-                                            }
-                                            status = "Saved ${output.name}"
-                                        }
-                                    }) { Text("Download") }
+                                    if (show.provider in listOf(WatchCatalog.Provider.KIMCARTOON, WatchCatalog.Provider.ANIMEFREAK, WatchCatalog.Provider.HIANIME)) {
+                                        TextButton(enabled = !busy && !DirectDownloads.isBusy, onClick = {
+                                            DirectDownloads.startEpisode(show, entry, quality, includeKimSubtitles)
+                                        }) { Text("Download") }
+                                    }
                                 }
                             }
                         }

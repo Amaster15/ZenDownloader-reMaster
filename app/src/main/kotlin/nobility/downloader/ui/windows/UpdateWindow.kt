@@ -108,7 +108,7 @@ class UpdateWindow(
                                 val staged = stagedFile.value
                                 if (staged == null) {
                                     downloadUpdate()
-                                } else if (Core.child.isRunning) {
+                                } else if (Core.child.hasActiveDownloads) {
                                     downloadStatus.value = "Stop active downloads before installing the update."
                                 } else {
                                     try {

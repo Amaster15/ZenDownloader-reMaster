@@ -155,6 +155,7 @@ class VideoDownloadHandler(
             var parsedResult: Resource<DownloadData>? = null
             if (m3U8Data == null) {
                 val retriesBeforePage = data.retries
+                var pageAttempt = 0
                 parsedResult = PageLinkRetry.run(
                     retries = Defaults.PAGE_LINK_RETRIES.int().coerceIn(1, 100),
                     delaySeconds = Defaults.PAGE_LINK_RETRY_DELAY_SECONDS.int().coerceIn(1, 100),
@@ -164,7 +165,15 @@ class VideoDownloadHandler(
                         // prevent a fresh page read or consume the download retry budget.
                         data.resRetries = 0
                         data.retries = retriesBeforePage
-                        help.parseQualities(slug)
+                        pageAttempt++
+                        data.message("Resolving video link: attempt $pageAttempt of ${Defaults.PAGE_LINK_RETRIES.int().coerceIn(1, 100) + 1}.")
+                        try {
+                            help.parseQualities(slug)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Resource.Error("Player/link resolution failed: ${e.message ?: e.javaClass.simpleName}", e)
+                        }
                     },
                     shouldRetry = { it.isFailed && it.errorCode != ErrorCode.FFMPEG_NOT_INSTALLED.code },
                     onRetry = { retry, total, seconds ->
