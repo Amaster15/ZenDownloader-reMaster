@@ -28,6 +28,9 @@ Missing FFmpeg/FFplay tools are downloaded from Tyrrrz/FFmpegBin into ~/.zen_dat
 Internet access is required for first-time setup; progress appears in the app.
 No separate Java or browser installation is required on Windows/Linux x64.
 Linux requires the standard desktop libraries used by Chrome and FFplay.
+If visible Chrome reports No usable sandbox on Ubuntu, run
+bash setup-browser-apparmor.sh as your normal desktop user. It previews a
+scoped policy and asks for confirmation and sudo; it does not run automatically.
 VLC and MPV are optional external players; FFplay is prepared automatically.
 Settings and download history are stored in your user profile, outside this folder.
 
@@ -56,6 +59,7 @@ for os, runtime in [('windows', a.windows_runtime), ('linux', a.linux_runtime)]:
         (stage / 'run.bat').write_bytes(b'@echo off\r\nset "DIR=%~dp0"\r\n"%DIR%runtime\\bin\\java.exe" -jar "%DIR%launcher.jar" %*\r\nif errorlevel 1 pause\r\n')
         assert (stage / 'runtime/bin/java.exe').exists()
     else:
+        shutil.copy2(repo / 'scripts/setup-browser-apparmor.sh', stage / 'setup-browser-apparmor.sh')
         script = stage / 'run.sh'
         script.write_text('#!/usr/bin/env bash\nset -euo pipefail\nDIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"\nexec "$DIR/runtime/bin/java" -jar "$DIR/launcher.jar" "$@"\n')
         script.chmod(0o755)

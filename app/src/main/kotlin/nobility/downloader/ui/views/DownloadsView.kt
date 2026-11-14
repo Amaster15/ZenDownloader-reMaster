@@ -7,24 +7,20 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Badge
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -297,34 +293,6 @@ class DownloadsView : ViewPage {
 
     override val menuOptions: List<OverflowOption>
         get() = listOf(
-            OverflowOption(
-                EvaIcons.Fill.Sync,
-                "Download Queue",
-                badge = {
-                    if (Core.child.downloadThread.downloadsInQueue.value > 0) {
-                        Badge(
-                            containerColor = Color.Red,
-                            modifier = Modifier.offset(y = 2.dp, x = (-8).dp)
-                        ) {
-                            Text(
-                                Core.child.downloadThread.downloadsInQueue.value.toString(),
-                                overflow = TextOverflow.Clip,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 10.sp
-                            )
-                        }
-                    }
-                }
-            ) {
-                Core.openDownloadQueue()
-            },
-            OverflowOption(
-                EvaIcons.Fill.Save,
-                "Downloaded Episodes History",
-            ) {
-                Core.openDownloadedEpisodesWindow()
-            },
             OverflowOption(
                 EvaIcons.Fill.Folder,
                 "Open Download Folder"

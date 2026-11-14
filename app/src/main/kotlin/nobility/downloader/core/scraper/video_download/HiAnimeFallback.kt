@@ -109,12 +109,11 @@ class HiAnimeFallback {
         // Discover the public player response configuration rather than storing a rotating key.
         val page = Jsoup.parse(text(match.player), match.player)
         var responseKey: String? = null
-        val keyPattern = Regex("let a=\"([^\"]+)\",i=\"https://new\\.vidnest\\.fun\"")
         for (script in page.select("script[src]")) {
             val url = script.absUrl("src")
             if (URI(url).host != "vidnest.fun" || !URI(url).path.startsWith("/_next/static/chunks/")) continue
             val source = text(url, "https://vidnest.fun/")
-            responseKey = keyPattern.find(source)?.groupValues?.get(1)
+            responseKey = playerResponseKey(source)
             if (responseKey != null) break
         }
         val key = responseKey ?: error("Ayame's player configuration has changed")
@@ -194,6 +193,10 @@ class HiAnimeFallback {
     }
 
     companion object {
+        /** Minified variable names change between player builds; match the adjacent declarations. */
+        @JvmStatic fun playerResponseKey(source: String): String? = Regex(
+            """\b(?:let|const|var)\s+[A-Za-z_$][\w$]*\s*=\s*["']([A-Za-z0-9_-]{20,200})["']\s*,\s*[A-Za-z_$][\w$]*\s*=\s*["']https://new\.vidnest\.fun["']"""
+        ).find(source)?.groupValues?.get(1)
         @JvmStatic fun normalize(title: String) = Normalizer.normalize(title, Normalizer.Form.NFKC)
             .lowercase().replace(Regex("[^\\p{L}\\p{N}]"), "")
         @JvmStatic fun episodeNumber(name: String): Int? {

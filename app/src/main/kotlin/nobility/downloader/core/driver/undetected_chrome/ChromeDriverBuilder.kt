@@ -377,7 +377,13 @@ class ChromeDriverBuilder {
             Thread.sleep(100)
         }
         val detail = if (process.isAlive) "startup timed out" else "exited with code ${process.exitValue()}"
-        throw IllegalStateException("Browser $detail ($binaryLocation). Startup log: ${log.absolutePath}")
+        val startupDetail = runCatching { log.readText().takeLast(6000) }.getOrDefault("")
+        val hint = if (startupDetail.contains("No usable sandbox!")) {
+            " Linux blocked Chrome's sandbox. Configure an AppArmor user-namespace allowance for this managed browser " +
+                "(scripts/setup-browser-apparmor.sh in the source repository), then retry."
+        } else ""
+        if (process.isAlive) process.destroyForcibly()
+        throw IllegalStateException("Browser $detail ($binaryLocation).$hint Startup log: ${log.absolutePath}")
     }
 
     private fun findFreePort(): Int {
