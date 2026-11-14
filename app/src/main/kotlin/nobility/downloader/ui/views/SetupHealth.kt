@@ -65,6 +65,7 @@ object SetupHealth {
                         if (Defaults.isUsingCustomChrome) error("Custom browser paths are enabled. Clear them in Settings to use automatic repair.")
                         File(AppInfo.databasePath, "browser/current").delete()
                         BrowserDriverSetup.setup()
+                        BrowserSandboxRepair.checkOnStartup(allowReprompt = true)
                         val result = FFSetDownloaderWindow().downloadLatestFFmpeg(force = true)
                         check(!result.isFailed) { result.message.orEmpty() }
                     }

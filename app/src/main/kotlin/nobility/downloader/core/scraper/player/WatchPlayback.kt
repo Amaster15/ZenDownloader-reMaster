@@ -42,11 +42,16 @@ object WatchPlayback {
                 status("Resolving a fresh video link…")
                 val stream = provider.resolve(match, quality)
                 val playlist = provider.playbackPlaylist(stream)
-                val local = HiAnimePlaybackServer(playlist, stream.segments.size) { index ->
-                    provider.playbackSegment(stream.segments[index])
-                }
-                bridge = local
-                url = local.url
+                val audio = if (stream.audioPlaylist != null) HiAnimePlaybackServer(
+                    provider.playbackAudioPlaylist(stream), stream.audioSegments.size
+                ) { index -> provider.playbackSegment(stream.audioSegments[index]) } else null
+                try {
+                    val local = HiAnimePlaybackServer(playlist, stream.segments.size, audio?.url) { index ->
+                        provider.playbackSegment(stream.segments[index])
+                    }
+                    bridge = java.io.Closeable { try { local.close() } finally { audio?.close() } }
+                    url = local.url
+                } catch (e: Exception) { audio?.close(); throw e }
             } else {
                 val help = VideoDownloadHelper(DownloadQueue(WatchCatalog.wcoEpisode(show, entry)), quality)
                 try {

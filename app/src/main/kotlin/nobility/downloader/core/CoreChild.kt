@@ -64,6 +64,7 @@ class CoreChild {
             try {
                 if (!Defaults.isUsingCustomChrome) {
                     BrowserDriverSetup.setup()
+                    nobility.downloader.core.driver.BrowserSandboxRepair.checkOnStartup()
                 }
             } catch (e: Exception) {
                 FrogLog.error("Failed to prepare a matching ChromeDriver.", e)

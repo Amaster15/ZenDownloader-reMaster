@@ -24,7 +24,7 @@ import javax.crypto.spec.SecretKeySpec
 /** Independent provider: never shares WCO TLS exceptions or partial media files. */
 class HiAnimeFallback {
     data class Match(val page: String, val animeId: Long, val episode: Int, val language: String, val player: String)
-    data class Stream(val playlist: String, val quality: Quality, val seconds: Double, val segments: List<String>)
+    data class Stream(val playlist: String, val quality: Quality, val seconds: Double, val segments: List<String>, val audioPlaylist: String? = null, val audioSegments: List<String> = emptyList())
     private val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20))
         .followRedirects(HttpClient.Redirect.NORMAL).build()
     private val agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
@@ -132,19 +132,29 @@ class HiAnimeFallback {
         require(result.get("success")?.asBoolean != false) { "Ayame has no stream for this episode" }
         val sources = result.getAsJsonArray("sources") ?: error("Ayame returned no sources")
         val master = sources.firstOrNull()?.asJsonObject?.get("file")?.asString ?: error("Ayame returned an empty source list")
-        val variants = variants(text(master, "https://megaplay.buzz/"), master)
+        val masterText = text(master, "https://megaplay.buzz/")
+        val variants = variants(masterText, master)
         val chosen = variants.filter { it.first <= requested.resolution }.maxByOrNull { it.first }
             ?: variants.minByOrNull { it.first } ?: error("No supported HiAnime quality")
         val media = text(chosen.second, "https://megaplay.buzz/")
         val parts = segments(media, chosen.second)
         val seconds = Regex("#EXTINF:([0-9.]+)").findAll(media).sumOf { it.groupValues[1].toDouble() }
         require(seconds > 0 && parts.isNotEmpty())
-        return Stream(chosen.second, Quality.qualityForResolution(chosen.first), seconds, parts)
+        val audio = audioPlaylist(masterText, master, chosen.second, match.language)
+        val audioParts = audio?.let { segments(text(it, "https://megaplay.buzz/"), it) }.orEmpty()
+        return Stream(chosen.second, Quality.qualityForResolution(chosen.first), seconds, parts, audio, audioParts)
     }
 
     suspend fun playbackPlaylist(stream: Stream): String {
         val playlist = text(stream.playlist, "https://megaplay.buzz/")
         require(segments(playlist, stream.playlist) == stream.segments) { "Playlist changed; please press Play again" }
+        return playlist
+    }
+
+    suspend fun playbackAudioPlaylist(stream: Stream): String {
+        val url = requireNotNull(stream.audioPlaylist)
+        val playlist = text(url, "https://megaplay.buzz/")
+        require(segments(playlist, url) == stream.audioSegments) { "Audio playlist changed; please press Play again" }
         return playlist
     }
 
@@ -160,26 +170,40 @@ class HiAnimeFallback {
         val monitor = launch { while (isActive) { if (!running()) { owner.cancel(CancellationException("Download stopped")); break }; delay(200) } }
         try {
             val joined = File(folder, "episode.ts")
-            joined.outputStream().buffered().use { out ->
-                stream.segments.forEachIndexed { index, url ->
-                    ensureActive()
-                    if (!running()) throw CancellationException("Download stopped")
-                    var payload: ByteArray? = null
-                    for (attempt in 0..2) {
-                        try { payload = tsPayload(bytes(url, "https://megaplay.buzz/")); break }
-                        catch (e: CancellationException) { throw e }
-                        catch (e: Exception) { if (attempt == 2) throw e; delay(1000) }
+            var completed = 0
+            val total = stream.segments.size + stream.audioSegments.size
+            suspend fun fetchTrack(urls: List<String>, target: File) {
+                target.outputStream().buffered().use { out ->
+                    urls.forEach { url ->
+                        ensureActive()
+                        if (!running()) throw CancellationException("Download stopped")
+                        var payload: ByteArray? = null
+                        for (attempt in 0..2) {
+                            try { payload = tsPayload(bytes(url, "https://megaplay.buzz/")); break }
+                            catch (e: CancellationException) { throw e }
+                            catch (e: Exception) { if (attempt == 2) throw e; delay(1000) }
+                        }
+                        out.write(requireNotNull(payload))
+                        progress(++completed * 95 / total)
                     }
-                    out.write(requireNotNull(payload))
-                    progress((index + 1) * 95 / stream.segments.size)
                 }
             }
+            fetchTrack(stream.segments, joined)
+            val audioFile = File(folder, "audio.ts")
+            if (stream.audioSegments.isNotEmpty()) fetchTrack(stream.audioSegments, audioFile)
             ensureActive()
-            process = ProcessBuilder(ffmpeg, "-nostdin", "-v", "error", "-n", "-i", joined.absolutePath,
-                "-map", "0:v:0", "-map", "0:a:0", "-c", "copy", "-movflags", "+faststart", tempVideo.absolutePath)
+            val command = mutableListOf(ffmpeg, "-nostdin", "-v", "error", "-n", "-i", joined.absolutePath)
+            if (stream.audioSegments.isNotEmpty()) command += listOf("-i", audioFile.absolutePath)
+            command += listOf("-map", "0:v:0", "-map", if (stream.audioSegments.isNotEmpty()) "1:a:0" else "0:a:0",
+                "-c", "copy", "-movflags", "+faststart", tempVideo.absolutePath)
+            process = ProcessBuilder(command)
                 .redirectErrorStream(true).redirectOutput(File(folder, "ffmpeg.log")).start()
             while (process.isAlive) { ensureActive(); delay(200) }
-            require(process.exitValue() == 0 && tempVideo.length() > 1024) { "HiAnime MP4 conversion failed" }
+            require(process.exitValue() == 0 && tempVideo.length() > 1024) {
+                val detail = runCatching { File(folder, "ffmpeg.log").readText().takeLast(4000).trim() }
+                    .getOrDefault("").ifBlank { "FFmpeg produced no usable MP4 file" }
+                "HiAnime MP4 conversion failed (exit ${process.exitValue()}): $detail"
+            }
             // All segments must be present and muxing must succeed before publishing the file.
             ensureActive()
             if (!running()) throw CancellationException("Download stopped")
@@ -193,6 +217,23 @@ class HiAnimeFallback {
     }
 
     companion object {
+        @JvmStatic fun audioPlaylist(source: String, base: String, video: String, language: String): String? {
+            require(language in listOf("dub", "sub"))
+            fun attributes(line: String): Map<String, String> = Regex("""([A-Z0-9-]+)=(?:"([^"]*)"|([^,]*))""")
+                .findAll(line.substringAfter(':')).associate { it.groupValues[1] to (it.groups[2]?.value ?: it.groupValues[3]) }
+            val lines = source.lines().map { it.trim() }
+            val variant = lines.indices.firstOrNull { i -> lines[i].startsWith("#EXT-X-STREAM-INF:") &&
+                lines.drop(i + 1).firstOrNull { it.isNotBlank() && !it.startsWith('#') }?.let { URI(base).resolve(it).toString() } == video }
+            val group = variant?.let { attributes(lines[it])["AUDIO"] } ?: return null
+            val tracks = lines.filter { it.startsWith("#EXT-X-MEDIA:") }.map { attributes(it) }
+                .filter { it["TYPE"] == "AUDIO" && it["GROUP-ID"] == group }
+            val languages = if (language == "dub") setOf("en", "eng") else setOf("ja", "jpn")
+            val selected = tracks.filter { it["LANGUAGE"]?.lowercase()?.substringBefore('-') in languages }
+            val track = selected.singleOrNull() ?: selected.singleOrNull { it["DEFAULT"] == "YES" }
+                ?: error("HiAnime has no unambiguous ${if (language == "dub") "English" else "Japanese"} audio track")
+            return track["URI"]?.let { URI(base).resolve(it).also { u -> require(u.scheme == "https") }.toString() }
+        }
+
         /** Minified variable names change between player builds; match the adjacent declarations. */
         @JvmStatic fun playerResponseKey(source: String): String? = Regex(
             """\b(?:let|const|var)\s+[A-Za-z_$][\w$]*\s*=\s*["']([A-Za-z0-9_-]{20,200})["']\s*,\s*[A-Za-z_$][\w$]*\s*=\s*["']https://new\.vidnest\.fun["']"""

@@ -28,9 +28,10 @@ Missing FFmpeg/FFplay tools are downloaded from Tyrrrz/FFmpegBin into ~/.zen_dat
 Internet access is required for first-time setup; progress appears in the app.
 No separate Java or browser installation is required on Windows/Linux x64.
 Linux requires the standard desktop libraries used by Chrome and FFplay.
-If visible Chrome reports No usable sandbox on Ubuntu, run
-bash setup-browser-apparmor.sh as your normal desktop user. It previews a
-scoped policy and asks for confirmation and sudo; it does not run automatically.
+On Ubuntu, the app checks for a blocked browser sandbox on startup and offers
+Repair with administrator authentication when needed, including after in-app updates.
+The scoped policy is applied only after approval. If graphical authentication is
+unavailable, run bash setup-browser-apparmor.sh as your normal desktop user.
 VLC and MPV are optional external players; FFplay is prepared automatically.
 Settings and download history are stored in your user profile, outside this folder.
 
